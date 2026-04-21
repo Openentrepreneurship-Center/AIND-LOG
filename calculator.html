@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>과학 계산기</title>
+    <title>과학 계산기 v2</title>
     <style>
       * {
         margin: 0;
@@ -14,10 +14,34 @@
       body {
         display: flex;
         justify-content: center;
-        align-items: center;
+        align-items: flex-start;
+        gap: 20px;
         min-height: 100vh;
-        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+        padding: 40px 20px;
+        background: linear-gradient(135deg, #0d1117, #161b22, #1f2937);
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        transition: background 0.4s;
+      }
+
+      body.light-theme {
+        background: linear-gradient(135deg, #f0f4ff, #e8edf5, #dde4f0);
+      }
+
+      body.light-theme .calculator {
+        background: rgba(255, 255, 255, 0.85);
+        border-color: rgba(0, 0, 0, 0.1);
+        color: #111;
+      }
+
+      body.light-theme .display {
+        background: rgba(0, 0, 0, 0.04);
+        color: #111;
+      }
+
+      body.light-theme .history-panel {
+        background: rgba(255, 255, 255, 0.8);
+        border-color: rgba(0, 0, 0, 0.1);
+        color: #333;
       }
 
       .calculator {
@@ -196,6 +220,113 @@
         letter-spacing: 1px;
       }
 
+      /* 복사 버튼 */
+      .copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.5);
+        border-radius: 6px;
+        padding: 3px 8px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .copy-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+      .copy-btn.copied { color: #34d399; border-color: #34d399; }
+
+      /* 테마 토글 버튼 */
+      .theme-toggle {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.7);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        z-index: 100;
+      }
+      .theme-toggle:hover { background: rgba(255,255,255,0.15); }
+
+      /* 계산 히스토리 패널 */
+      .history-panel {
+        width: 260px;
+        background: rgba(255,255,255,0.04);
+        backdrop-filter: blur(20px);
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.08);
+        padding: 16px;
+        max-height: 500px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .history-title {
+        font-size: 12px;
+        color: rgba(255,255,255,0.4);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .history-clear-btn {
+        background: none;
+        border: none;
+        color: rgba(239,68,68,0.6);
+        font-size: 11px;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .history-clear-btn:hover { background: rgba(239,68,68,0.1); color: #f87171; }
+
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .history-item {
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        transition: background 0.15s;
+        border: 1px solid transparent;
+      }
+      .history-item:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
+
+      .history-expr {
+        font-size: 11px;
+        color: rgba(255,255,255,0.35);
+        margin-bottom: 2px;
+      }
+
+      .history-result {
+        font-size: 16px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.85);
+        font-family: monospace;
+      }
+
+      .history-empty {
+        color: rgba(255,255,255,0.2);
+        font-size: 12px;
+        text-align: center;
+        padding: 24px 0;
+      }
+
       .display {
         position: relative;
       }
@@ -206,6 +337,20 @@
     </style>
   </head>
   <body>
+    <!-- 테마 토글 -->
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 다크</button>
+
+    <!-- 계산 히스토리 패널 -->
+    <div class="history-panel">
+      <div class="history-title">
+        <span>계산 기록</span>
+        <button class="history-clear-btn" onclick="clearHistory()">모두 삭제</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty" id="historyEmpty">아직 계산 기록이 없습니다</div>
+      </div>
+    </div>
+
     <div class="calculator">
       <div class="mode-toggle">
         <button id="btnBasic" class="active" onclick="setMode('basic')">
@@ -216,6 +361,7 @@
 
       <div class="display">
         <span class="angle-indicator" id="angleIndicator"></span>
+        <button class="copy-btn" id="copyBtn" onclick="copyResult()">복사</button>
         <div class="expression" id="expression"></div>
         <div class="result" id="result">0</div>
       </div>
@@ -380,6 +526,8 @@
       let shouldResetInput = false;
       let mode = "basic"; // 'basic' or 'scientific'
       let angleMode = "deg"; // 'deg' or 'rad'
+      let calcHistory = []; // 계산 기록 배열
+      let isDarkTheme = true;
 
       const expressionEl = document.getElementById("expression");
       const resultEl = document.getElementById("result");
@@ -533,7 +681,9 @@
         result = parseFloat(result.toPrecision(12));
 
         const displayOp = operator === "xⁿ" ? "^" : operator;
-        expressionEl.textContent = `${previousInput} ${displayOp} ${currentInput} =`;
+        const exprText = `${previousInput} ${displayOp} ${currentInput}`;
+        expressionEl.textContent = exprText + " =";
+        addToHistory(exprText, result);
         currentInput = String(result);
         operator = null;
         previousInput = "";
@@ -687,6 +837,7 @@
 
         result = parseFloat(result.toPrecision(12));
         expressionEl.textContent = `${label} =`;
+        addToHistory(label, result);
         currentInput = String(result);
         shouldResetInput = true;
         updateDisplay();
@@ -738,6 +889,65 @@
         shouldResetInput = false;
         expressionEl.textContent = "";
         updateDisplay();
+      }
+
+      // ── 복사 기능 ─────────────────────────────────────────────────────────
+      function copyResult() {
+        const val = currentInput;
+        if (val === "오류" || val === "0") return;
+        navigator.clipboard.writeText(val).then(() => {
+          const btn = document.getElementById("copyBtn");
+          btn.textContent = "✓ 복사됨";
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.textContent = "복사";
+            btn.classList.remove("copied");
+          }, 1500);
+        });
+      }
+
+      // ── 테마 토글 ─────────────────────────────────────────────────────────
+      function toggleTheme() {
+        isDarkTheme = !isDarkTheme;
+        document.body.classList.toggle("light-theme", !isDarkTheme);
+        const btn = document.getElementById("themeBtn");
+        btn.textContent = isDarkTheme ? "🌙 다크" : "☀️ 라이트";
+      }
+
+      // ── 계산 기록 ─────────────────────────────────────────────────────────
+      function addToHistory(expr, result) {
+        calcHistory.unshift({ expr, result, time: new Date().toLocaleTimeString("ko-KR") });
+        if (calcHistory.length > 20) calcHistory.pop();
+        renderHistory();
+      }
+
+      function renderHistory() {
+        const list = document.getElementById("historyList");
+        const empty = document.getElementById("historyEmpty");
+        if (calcHistory.length === 0) {
+          empty.style.display = "block";
+          list.querySelectorAll(".history-item").forEach(el => el.remove());
+          return;
+        }
+        empty.style.display = "none";
+        list.querySelectorAll(".history-item").forEach(el => el.remove());
+        calcHistory.forEach((item, idx) => {
+          const div = document.createElement("div");
+          div.className = "history-item";
+          div.innerHTML = `<div class="history-expr">${item.expr} &nbsp;<span style="color:rgba(255,255,255,0.2);font-size:10px">${item.time}</span></div>
+            <div class="history-result">${item.result}</div>`;
+          div.onclick = () => {
+            currentInput = String(item.result);
+            shouldResetInput = true;
+            updateDisplay();
+          };
+          list.appendChild(div);
+        });
+      }
+
+      function clearHistory() {
+        calcHistory = [];
+        renderHistory();
       }
 
       function toggleSign() {
