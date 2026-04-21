@@ -1,0 +1,60 @@
+#!/bin/sh
+# Git post-commit hook for Cline metrics.
+# Saves both diff patch and full snapshot per commit.
+
+set -e
+repo_root="$(git rev-parse --show-toplevel)"
+metrics="$repo_root/.cline-metrics"
+sha="$(git rev-parse HEAD)"
+ts_ms=$(($(date +%s) * 1000))
+msg="$(git log -1 --pretty=%B HEAD | tr -d '\r')"
+
+mkdir -p "$metrics/commits" "$metrics/final"
+
+# 1. diff patch (변경분)
+git show HEAD --format=fuller > "$metrics/commits/$sha.patch" 2>/dev/null || true
+
+# 2. full snapshot (전체 소스 코드 스냅샷 → <sha>.snapshot.json)
+python3 - <<PYEOF
+import json, subprocess, os, sys
+
+repo   = r"$repo_root"
+sha    = "$sha"
+out    = os.path.join(r"$metrics", "commits", sha + ".snapshot.json")
+
+def run(cmd, cwd=repo):
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+    return r.stdout if r.returncode == 0 else ""
+
+# 이 커밋에서 변경된 파일 목록 (--root: 첫 커밋도 처리)
+changed_files = [
+    f.strip()
+    for f in run(["git", "diff-tree", "--no-commit-id", "-r", "--name-only", "--root", sha]).splitlines()
+    if f.strip()
+]
+
+# 전체 추적 파일 목록 (repo 전체 스냅샷)
+all_files = [
+    f.strip()
+    for f in run(["git", "ls-tree", "-r", "--name-only", sha]).splitlines()
+    if f.strip()
+]
+
+snapshot = {"sha": sha, "changed_files": changed_files, "all_files": {}}
+for filepath in all_files:
+    content = run(["git", "show", f"{sha}:{filepath}"])
+    snapshot["all_files"][filepath] = content
+
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(snapshot, f, ensure_ascii=False)
+PYEOF
+
+# 3. events.jsonl 에 GitCommit 이벤트 기록
+esc_msg=$(printf '%s' "$msg" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+printf '{"ts":%s,"event":"GitCommit","sha":"%s","message":%s}\n' \
+  "$ts_ms" "$sha" "$esc_msg" >> "$metrics/events.jsonl"
+
+# 4. [reviewed] 태그 처리
+case "$msg" in
+  *"[reviewed]"*) : > "$metrics/final/$sha.marker" ;;
+esac

@@ -1,0 +1,3 @@
+﻿task_id,start_ts,spec_or_initial_task,first_prompt,resumed,resume_prompts_json,first_code_ts,time_to_first_code_ms,test_runs_count,test_runs_total_ms,commit_count,reviewed_commit_count,last_commit_ts,time_to_last_commit_ms
+t1,1712999999000,smoke,,False,[],,,0,0,0,0,,
+1776070955464,1776070955478,계산기 프로그램 만들어줄 수 있니?,계산기 프로그램 만들어줄 수 있니?,True,"["""", ""작업내역 커밋해줘""]",1776070995165,39687,0,0,1,0,1776087539000,16583522

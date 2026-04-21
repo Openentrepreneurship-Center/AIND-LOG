@@ -1,0 +1,26 @@
+# Cline metrics raw data (large files)
+.cline-metrics/events.jsonl
+.cline-metrics/commits/
+.cline-metrics/final/
+.cline-metrics/excel_export/
+~/.cline-metrics-errors/
+
+# Node modules
+node_modules/
+dashboard/frontend/node_modules/
+dashboard/frontend/.vite/
+
+# Build output
+dashboard/frontend/dist/
+
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Excel generated files (optional - remove if you want to track these)
+# cline_hook_guide.xlsx
+# .cline-metrics/excel_export/*.xlsx

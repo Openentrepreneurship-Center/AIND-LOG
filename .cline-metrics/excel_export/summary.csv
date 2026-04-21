@@ -1,0 +1,9 @@
+﻿metric,value
+total_events,19
+total_tasks_started,2
+total_resumed_tasks,1
+rework_rate,0.5
+total_test_runs,0
+total_test_duration_ms,0
+total_commits,1
+reviewed_commit_markers,0
