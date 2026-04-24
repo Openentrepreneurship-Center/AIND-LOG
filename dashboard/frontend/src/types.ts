@@ -80,6 +80,28 @@ export interface Commit {
   snapshot_files: CommitSnapshotFile[]
 }
 
+// ── Similarity (AIND_SIMILARITY 적응) ──────────────────────────────────────
+export interface SimilarityScores {
+  L1: number   // Levenshtein — 문자 단위 표면 유사도
+  L2: number   // BLEU — 토큰 n-gram 유사도
+  L3: number   // 구조적 유사도 — 라인 단위 SequenceMatcher
+  L4: number   // 의미론적 유사도 — TF-IDF char cosine
+}
+
+export interface SimilarityResult {
+  sha: string
+  sha_short: string
+  prev_sha: string
+  prev_sha_short: string
+  message: string
+  ts_kst: string
+  file: string
+  scores: SimilarityScores
+  old_size: number
+  new_size: number
+  changed: boolean
+}
+
 export interface DashboardData {
   summary: Summary
   tasks: Task[]

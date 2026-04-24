@@ -5,6 +5,8 @@ import TaskTable from './components/TaskTable'
 import EventLog from './components/EventLog'
 import EventChart from './components/EventChart'
 import CommitView from './components/CommitView'
+import SimilarityView from './components/SimilarityView'
+import SimilarityStepView from './components/SimilarityStepView'
 
 export default function App() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -109,6 +111,12 @@ export default function App() {
 
             {/* Commit View */}
             <CommitView />
+
+            {/* Similarity Step View (단계별 수치) */}
+            <SimilarityStepView />
+
+            {/* Similarity Chart View (추이 차트) */}
+            <SimilarityView />
 
             {/* Event Log */}
             <EventLog events={data.events} />

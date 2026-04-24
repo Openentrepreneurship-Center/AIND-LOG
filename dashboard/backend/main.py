@@ -865,6 +865,153 @@ def get_commit_snapshot(sha: str) -> dict:
     raise HTTPException(status_code=404, detail=f"SHA '{sha}' 에 해당하는 커밋을 찾을 수 없습니다.")
 
 
+# ── similarity ────────────────────────────────────────────────────────────────
+
+class SimilarityScores(BaseModel):
+    """L1~L4 유사도 점수 묶음."""
+    L1: float = Field(..., description="Levenshtein — 문자 단위 표면 유사도 [0.0~1.0]")
+    L2: float = Field(..., description="BLEU — 토큰 n-gram 유사도 [0.0~1.0]")
+    L3: float = Field(..., description="구조적 유사도 — 라인 단위 SequenceMatcher [0.0~1.0]")
+    L4: float = Field(..., description="의미론적 유사도 — TF-IDF char cosine [0.0~1.0]")
+
+
+class SimilarityResult(BaseModel):
+    """커밋 간 코드 유사도 측정 결과."""
+    sha: str = Field(..., description="현재 커밋 SHA (full)")
+    sha_short: str = Field(..., description="현재 커밋 SHA (7자)")
+    prev_sha: str = Field(..., description="이전 커밋 SHA (없으면 빈 문자열)")
+    prev_sha_short: str = Field(..., description="이전 커밋 SHA (7자, 없으면 빈 문자열)")
+    message: str = Field(..., description="커밋 메시지")
+    ts_kst: str = Field(..., description="커밋 시각 (KST)")
+    file: str = Field(..., description="비교 대상 파일 경로")
+    scores: SimilarityScores = Field(..., description="L1~L4 유사도 점수")
+    old_size: int = Field(..., description="이전 파일 크기 (bytes)")
+    new_size: int = Field(..., description="현재 파일 크기 (bytes)")
+    changed: bool = Field(..., description="파일 내용이 실제로 변경됐는지 여부")
+
+
+def _git_file_at(sha: str, filepath: str) -> str:
+    """특정 커밋 SHA 에서 파일 내용을 git show 로 읽어 반환."""
+    import subprocess
+    r = subprocess.run(
+        ["git", "show", f"{sha}:{filepath}"],
+        capture_output=True, text=True,
+        cwd=str(ROOT.parent),
+    )
+    return r.stdout if r.returncode == 0 else ""
+
+
+def _git_commits_for_file(filepath: str) -> list[tuple[str, int, str]]:
+    """filepath 를 수정한 커밋을 시간 순(오래된 것 → 최신)으로 반환.
+
+    reflog 를 포함해 orphan 브랜치 이전 커밋도 검색.
+    반환: [(sha, unix_ts, message), ...]
+    """
+    import subprocess
+    r = subprocess.run(
+        ["git", "log", "--all", "--reflog",
+         "--format=%H %at %s", "--", filepath],
+        capture_output=True, text=True,
+        cwd=str(ROOT.parent),
+    )
+    rows: list[tuple[str, int, str]] = []
+    for line in r.stdout.strip().splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) >= 2:
+            sha_full = parts[0]
+            ts_int = int(parts[1]) if parts[1].isdigit() else 0
+            msg = parts[2] if len(parts) > 2 else ""
+            rows.append((sha_full, ts_int, msg))
+    rows.sort(key=lambda x: x[1])          # 시간 오름차순
+    # sha 중복 제거 (같은 SHA 가 여러 reflog 에 등장할 수 있음)
+    seen: set[str] = set()
+    unique: list[tuple[str, int, str]] = []
+    for row in rows:
+        if row[0] not in seen:
+            seen.add(row[0])
+            unique.append(row)
+    return unique
+
+
+_similarity_cache: dict[str, list[dict]] = {}
+
+
+@app.get(
+    "/api/similarity",
+    response_model=list[SimilarityResult],
+    tags=["similarity"],
+    summary="커밋별 코드 유사도 (L1~L4)",
+    description="""
+커밋 히스토리를 순서대로 탐색하며 연속된 두 커밋 간 코드 유사도를 L1~L4 레이어로 측정합니다.
+
+원본 알고리즘: [AIND_SIMILARITY](https://github.com/Openentrepreneurship-Center/AIND_SIMILARITY)
+
+| 레이어 | 원본 알고리즘 | 이 프로젝트 적응 |
+|--------|--------------|-----------------|
+| **L1** | Levenshtein.ratio | 동일 (rapidfuzz) |
+| **L2** | CrystalBLEU (javalang) | BLEU + JS regex 토크나이저 |
+| **L3** | TSED (tree-sitter-java APTED) | SequenceMatcher 라인 구조 유사도 |
+| **L4** | CodeBERTScore F1 (codebert-java) | TF-IDF char n-gram cosine |
+
+- `file` 파라미터로 비교할 파일을 지정할 수 있습니다 (기본: `calculator.html`).
+- 결과는 메모리에 캐시되며, `?refresh=true` 로 재계산할 수 있습니다.
+""",
+)
+def get_similarity(
+    file: str = Query(
+        "calculator.html",
+        description="유사도를 측정할 파일 경로 (git 기준 상대 경로)",
+        example="calculator.html",
+    ),
+    refresh: bool = Query(
+        False,
+        description="캐시를 무시하고 재계산할지 여부",
+    ),
+) -> list[dict]:
+    global _similarity_cache
+    cache_key = file
+
+    if not refresh and cache_key in _similarity_cache:
+        return _similarity_cache[cache_key]
+
+    from similarity import compute_all
+
+    commits = _git_commits_for_file(file)
+    results: list[dict] = []
+
+    for i, (sha, ts_int, msg) in enumerate(commits):
+        new_code = _git_file_at(sha, file)
+        prev_sha = ""
+        prev_sha_short = ""
+        old_code = ""
+
+        if i > 0:
+            prev_sha = commits[i - 1][0]
+            prev_sha_short = prev_sha[:7]
+            old_code = _git_file_at(prev_sha, file)
+
+        scores = compute_all(old_code, new_code) if old_code else {
+            "L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0
+        }
+
+        results.append({
+            "sha": sha,
+            "sha_short": sha[:7],
+            "prev_sha": prev_sha,
+            "prev_sha_short": prev_sha_short,
+            "message": msg,
+            "ts_kst": _kst(ts_int * 1000) if ts_int else "",
+            "file": file,
+            "scores": scores,
+            "old_size": len(old_code.encode("utf-8")),
+            "new_size": len(new_code.encode("utf-8")),
+            "changed": old_code != new_code,
+        })
+
+    _similarity_cache[cache_key] = results
+    return results
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
