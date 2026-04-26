@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: decapet-postgres
+    environment:
+      POSTGRES_DB: decapet
+      POSTGRES_USER: decapet
+      POSTGRES_PASSWORD: decapet123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U decapet -d decapet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

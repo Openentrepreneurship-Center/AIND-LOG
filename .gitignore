@@ -5,8 +5,12 @@
 .cline-metrics/excel_export/
 ~/.cline-metrics-errors/
 
-# decapet 사본 (작업 대상 프로젝트, 자체 .git 보유)
-decapet-official/
+# decapet 사본 빌드 산출물 (코드 자체는 추적)
+decapet-official/backend/build/
+decapet-official/backend/.gradle/
+decapet-official/backend/.idea/
+decapet-official/backend/.next/
+**/.DS_Store
 
 # Claude Code / OMC 개인 메타데이터
 .claude/

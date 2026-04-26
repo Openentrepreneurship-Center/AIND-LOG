@@ -1,0 +1,2 @@
+ALTER TABLE site_settings ADD COLUMN shipping_fee INTEGER NOT NULL DEFAULT 3000;
+ALTER TABLE site_settings ADD COLUMN free_shipping_threshold INTEGER NOT NULL DEFAULT 100000;

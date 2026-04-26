@@ -1,0 +1,1 @@
+ALTER TABLE time_slots ADD COLUMN max_capacity INT NOT NULL DEFAULT 20;

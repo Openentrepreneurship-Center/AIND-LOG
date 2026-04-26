@@ -1,0 +1,5 @@
+CREATE TABLE spam_phone_patterns (
+    id BIGSERIAL PRIMARY KEY,
+    pattern VARCHAR(20) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

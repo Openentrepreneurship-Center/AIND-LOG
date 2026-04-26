@@ -27,13 +27,18 @@ ROOT = Path(__file__).resolve().parent.parent.parent / ".cline-metrics"
 EVENTS_PATH = ROOT / "events.jsonl"
 FINAL_DIR = ROOT / "final"
 
-# 유사도 분석 대상 repo (git 명령이 실행될 cwd). 환경변수로 다른 프로젝트 전환 가능.
+# 유사도 분석 대상 repo 표시 경로 (UI/응답용)
 TARGET_REPO_ROOT = Path(
     os.environ.get(
         "TARGET_REPO_ROOT",
         str(ROOT.parent / "decapet-official" / "backend"),
     )
 )
+# 새 AIND-LOG commit 의 snapshot 은 모든 파일 경로가 'decapet-official/backend/...' 처럼 prefix 가 붙는다.
+# 백필된 decapet 자체 commit 의 snapshot 은 prefix 가 없다 ('src/...').
+# 이 둘을 모두 매칭하기 위한 prefix.
+TARGET_REPO_PREFIX = os.environ.get("TARGET_REPO_PREFIX", "decapet-official/backend/")
+COMMITS_DIR = ROOT / "commits"
 
 # ── constants ───────────────────────────────────────────────────────────────
 KST = timezone(timedelta(hours=9))
@@ -899,47 +904,66 @@ class SimilarityResult(BaseModel):
     changed: bool = Field(..., description="파일 내용이 실제로 변경됐는지 여부")
 
 
+def _load_snapshot(sha: str) -> dict:
+    """commits/<sha>.snapshot.json 을 읽어 반환. 없으면 {}."""
+    p = COMMITS_DIR / f"{sha}.snapshot.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _path_candidates(filepath: str) -> list[str]:
+    """백필 snapshot(짧은 경로) / 신규 AIND-LOG snapshot(긴 경로) 양쪽 매칭용 후보."""
+    cands = [filepath]
+    if TARGET_REPO_PREFIX:
+        if filepath.startswith(TARGET_REPO_PREFIX):
+            cands.append(filepath[len(TARGET_REPO_PREFIX):])
+        else:
+            cands.append(TARGET_REPO_PREFIX + filepath)
+    return cands
+
+
 def _git_file_at(sha: str, filepath: str) -> str:
-    """특정 커밋 SHA 에서 파일 내용을 git show 로 읽어 반환."""
-    import subprocess
-    r = subprocess.run(
-        ["git", "show", f"{sha}:{filepath}"],
-        capture_output=True, text=True,
-        cwd=str(TARGET_REPO_ROOT),
-    )
-    return r.stdout if r.returncode == 0 else ""
+    """commit snapshot 에서 파일 내용을 추출 (snapshot 기반)."""
+    snap = _load_snapshot(sha)
+    all_files = snap.get("all_files", {})
+    for c in _path_candidates(filepath):
+        if c in all_files:
+            return all_files[c]
+    return ""
 
 
 def _git_commits_for_file(filepath: str) -> list[tuple[str, int, str]]:
-    """filepath 를 수정한 커밋을 시간 순(오래된 것 → 최신)으로 반환.
-
-    reflog 를 포함해 orphan 브랜치 이전 커밋도 검색.
-    반환: [(sha, unix_ts, message), ...]
+    """events.jsonl 의 GitCommit + snapshot.changed_files 매칭으로 시간순 반환.
+    반환: [(sha, unix_ts_sec, message), ...]
     """
-    import subprocess
-    r = subprocess.run(
-        ["git", "log", "--all", "--reflog",
-         "--format=%H %at %s", "--", filepath],
-        capture_output=True, text=True,
-        cwd=str(TARGET_REPO_ROOT),
-    )
+    if not EVENTS_PATH.exists():
+        return []
     rows: list[tuple[str, int, str]] = []
-    for line in r.stdout.strip().splitlines():
-        parts = line.split(" ", 2)
-        if len(parts) >= 2:
-            sha_full = parts[0]
-            ts_int = int(parts[1]) if parts[1].isdigit() else 0
-            msg = parts[2] if len(parts) > 2 else ""
-            rows.append((sha_full, ts_int, msg))
-    rows.sort(key=lambda x: x[1])          # 시간 오름차순
-    # sha 중복 제거 (같은 SHA 가 여러 reflog 에 등장할 수 있음)
     seen: set[str] = set()
-    unique: list[tuple[str, int, str]] = []
-    for row in rows:
-        if row[0] not in seen:
-            seen.add(row[0])
-            unique.append(row)
-    return unique
+    with EVENTS_PATH.open("r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("event") != "GitCommit":
+                continue
+            sha = d.get("sha")
+            if not sha or sha in seen:
+                continue
+            snap = _load_snapshot(sha)
+            changed = snap.get("changed_files", [])
+            if not any(c in changed for c in _path_candidates(filepath)):
+                continue
+            seen.add(sha)
+            ts_ms = int(d.get("ts") or 0)
+            rows.append((sha, ts_ms // 1000, d.get("message", "")))
+    rows.sort(key=lambda x: x[1])
+    return rows
 
 
 _similarity_cache: dict[str, list[dict]] = {}
@@ -1057,23 +1081,25 @@ def _build_tree(paths: list[str]) -> dict:
 @app.get(
     "/api/repo/tree",
     tags=["repo"],
-    summary="TARGET_REPO_ROOT 의 폴더 계층",
-    description="git ls-tree -r HEAD 결과를 폴더 트리로 변환해 반환합니다. 유사도 분석 대상 파일 선택 UI 에서 사용.",
+    summary="추적 대상 폴더 계층",
+    description="가장 최신 snapshot 의 all_files 키들로 폴더 트리를 구성합니다. TARGET_REPO_PREFIX 가 있으면 그 prefix 로 시작하는 파일만 노출 (prefix 제거된 짧은 경로로 표시).",
 )
 def get_repo_tree() -> dict:
-    import subprocess
-    r = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "HEAD"],
-        capture_output=True, text=True,
-        cwd=str(TARGET_REPO_ROOT),
-    )
-    if r.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"git ls-tree 실패 (TARGET_REPO_ROOT={TARGET_REPO_ROOT}): {r.stderr.strip()}",
-        )
-    paths = [line.strip() for line in r.stdout.splitlines() if line.strip()]
-    return {"root": str(TARGET_REPO_ROOT), "file_count": len(paths), "tree": _build_tree(paths)}
+    if not COMMITS_DIR.exists():
+        raise HTTPException(500, "commits 디렉토리가 없습니다 (.cline-metrics/commits 비어있음).")
+    snaps = sorted(COMMITS_DIR.glob("*.snapshot.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not snaps:
+        raise HTTPException(500, "snapshot.json 파일이 없습니다.")
+    try:
+        snap = json.loads(snaps[0].read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(500, f"snapshot 파싱 실패: {e}")
+    all_paths = sorted(snap.get("all_files", {}).keys())
+    if TARGET_REPO_PREFIX:
+        filtered = [p[len(TARGET_REPO_PREFIX):] for p in all_paths if p.startswith(TARGET_REPO_PREFIX)]
+        # prefix 매칭이 0건이면 백필 snapshot (prefix 없는 시점) 으로 간주, 원래 경로 그대로
+        all_paths = filtered if filtered else all_paths
+    return {"root": str(TARGET_REPO_ROOT), "file_count": len(all_paths), "tree": _build_tree(all_paths)}
 
 
 if __name__ == "__main__":

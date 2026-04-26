@@ -1,0 +1,190 @@
+/* Swagger UI Custom Styles for Decapet API */
+
+/* Reset font sizes to default */
+.swagger-ui {
+    font-size: 14px;
+}
+
+/* Tag (Group) styling */
+.swagger-ui .opblock-tag {
+    font-size: 18px !important;
+    font-weight: 600;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 10px 0;
+}
+
+.swagger-ui .opblock-tag:hover {
+    background: #f8f9fa;
+}
+
+/* Tag description - keep it minimal */
+.swagger-ui .opblock-tag small {
+    font-size: 13px;
+    color: #666;
+}
+
+/* Operation block styling */
+.swagger-ui .opblock {
+    margin: 0 0 5px 0;
+    border-radius: 4px;
+    box-shadow: none;
+    border: 1px solid #e0e0e0;
+}
+
+.swagger-ui .opblock .opblock-summary {
+    padding: 8px 15px;
+}
+
+/* Method badges - matching Goodsflow style */
+.swagger-ui .opblock.opblock-get .opblock-summary-method {
+    background: #61affe;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 70px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary-method {
+    background: #49cc90;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 70px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+}
+
+.swagger-ui .opblock.opblock-put .opblock-summary-method {
+    background: #fca130;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 70px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+}
+
+.swagger-ui .opblock.opblock-delete .opblock-summary-method {
+    background: #f93e3e;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 70px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+}
+
+.swagger-ui .opblock.opblock-patch .opblock-summary-method {
+    background: #50e3c2;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 70px;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+}
+
+/* Operation path styling */
+.swagger-ui .opblock .opblock-summary-path {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Operation description */
+.swagger-ui .opblock .opblock-summary-description {
+    font-size: 13px;
+    color: #555;
+}
+
+/* Collapsed state styling */
+.swagger-ui .opblock.opblock-get {
+    background: rgba(97, 175, 254, 0.1);
+    border-color: #61affe;
+}
+
+.swagger-ui .opblock.opblock-post {
+    background: rgba(73, 204, 144, 0.1);
+    border-color: #49cc90;
+}
+
+.swagger-ui .opblock.opblock-put {
+    background: rgba(252, 161, 48, 0.1);
+    border-color: #fca130;
+}
+
+.swagger-ui .opblock.opblock-delete {
+    background: rgba(249, 62, 62, 0.1);
+    border-color: #f93e3e;
+}
+
+.swagger-ui .opblock.opblock-patch {
+    background: rgba(80, 227, 194, 0.1);
+    border-color: #50e3c2;
+}
+
+/* Info section styling */
+.swagger-ui .info {
+    margin: 20px 0;
+}
+
+.swagger-ui .info .title {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.swagger-ui .info .description {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Parameters and responses */
+.swagger-ui .parameters-col_description {
+    font-size: 13px;
+}
+
+.swagger-ui .response-col_description {
+    font-size: 13px;
+}
+
+/* Model styling */
+.swagger-ui .model-box {
+    font-size: 13px;
+}
+
+/* Table styling */
+.swagger-ui table tbody tr td {
+    font-size: 13px;
+    padding: 8px;
+}
+
+.swagger-ui table thead tr th {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Button styling */
+.swagger-ui .btn {
+    font-size: 13px;
+}
+
+/* Response section */
+.swagger-ui .responses-inner {
+    padding: 15px;
+}
+
+/* Authorization section */
+.swagger-ui .auth-wrapper {
+    font-size: 14px;
+}
+
+/* Filter/Search box */
+.swagger-ui .filter-container {
+    margin: 15px 0;
+}
+
+.swagger-ui .filter-container input {
+    font-size: 14px;
+    padding: 8px 12px;
+}
