@@ -5,6 +5,13 @@
 .cline-metrics/excel_export/
 ~/.cline-metrics-errors/
 
+# decapet 사본 (작업 대상 프로젝트, 자체 .git 보유)
+decapet-official/
+
+# Claude Code / OMC 개인 메타데이터
+.claude/
+.omc/
+
 # Node modules
 node_modules/
 dashboard/frontend/node_modules/

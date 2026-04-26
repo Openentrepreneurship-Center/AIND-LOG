@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -25,6 +26,14 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parent.parent.parent / ".cline-metrics"
 EVENTS_PATH = ROOT / "events.jsonl"
 FINAL_DIR = ROOT / "final"
+
+# 유사도 분석 대상 repo (git 명령이 실행될 cwd). 환경변수로 다른 프로젝트 전환 가능.
+TARGET_REPO_ROOT = Path(
+    os.environ.get(
+        "TARGET_REPO_ROOT",
+        str(ROOT.parent / "decapet-official" / "backend"),
+    )
+)
 
 # ── constants ───────────────────────────────────────────────────────────────
 KST = timezone(timedelta(hours=9))
@@ -896,7 +905,7 @@ def _git_file_at(sha: str, filepath: str) -> str:
     r = subprocess.run(
         ["git", "show", f"{sha}:{filepath}"],
         capture_output=True, text=True,
-        cwd=str(ROOT.parent),
+        cwd=str(TARGET_REPO_ROOT),
     )
     return r.stdout if r.returncode == 0 else ""
 
@@ -912,7 +921,7 @@ def _git_commits_for_file(filepath: str) -> list[tuple[str, int, str]]:
         ["git", "log", "--all", "--reflog",
          "--format=%H %at %s", "--", filepath],
         capture_output=True, text=True,
-        cwd=str(ROOT.parent),
+        cwd=str(TARGET_REPO_ROOT),
     )
     rows: list[tuple[str, int, str]] = []
     for line in r.stdout.strip().splitlines():
@@ -953,15 +962,16 @@ _similarity_cache: dict[str, list[dict]] = {}
 | **L3** | TSED (tree-sitter-java APTED) | SequenceMatcher 라인 구조 유사도 |
 | **L4** | CodeBERTScore F1 (codebert-java) | TF-IDF char n-gram cosine |
 
-- `file` 파라미터로 비교할 파일을 지정할 수 있습니다 (기본: `calculator.html`).
+- `file` 파라미터는 필수입니다. TARGET_REPO_ROOT 기준 상대 경로로 지정하세요.
 - 결과는 메모리에 캐시되며, `?refresh=true` 로 재계산할 수 있습니다.
 """,
 )
 def get_similarity(
     file: str = Query(
-        "calculator.html",
-        description="유사도를 측정할 파일 경로 (git 기준 상대 경로)",
-        example="calculator.html",
+        ...,
+        min_length=1,
+        description="유사도를 측정할 파일 경로 (TARGET_REPO_ROOT 기준 상대 경로)",
+        example="src/main/java/com/decapet/.../SomeService.java",
     ),
     refresh: bool = Query(
         False,
@@ -977,6 +987,11 @@ def get_similarity(
     from similarity import compute_all
 
     commits = _git_commits_for_file(file)
+    if not commits:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{file}' 에 해당하는 커밋 히스토리를 찾을 수 없습니다 (TARGET_REPO_ROOT={TARGET_REPO_ROOT}).",
+        )
     results: list[dict] = []
 
     for i, (sha, ts_int, msg) in enumerate(commits):
@@ -1010,6 +1025,55 @@ def get_similarity(
 
     _similarity_cache[cache_key] = results
     return results
+
+
+def _build_tree(paths: list[str]) -> dict:
+    """평면 파일 경로 리스트를 폴더 계층 dict 로 변환."""
+    root: dict = {"name": "", "type": "dir", "path": "", "children": []}
+    for p in sorted(paths):
+        parts = p.split("/")
+        cur = root
+        for i, part in enumerate(parts):
+            is_file = (i == len(parts) - 1)
+            existing = next(
+                (c for c in cur["children"] if c["name"] == part and c["type"] == ("file" if is_file else "dir")),
+                None,
+            )
+            if existing:
+                cur = existing
+                continue
+            node: dict = {
+                "name": part,
+                "type": "file" if is_file else "dir",
+                "path": "/".join(parts[: i + 1]),
+            }
+            if not is_file:
+                node["children"] = []
+            cur["children"].append(node)
+            cur = node
+    return root
+
+
+@app.get(
+    "/api/repo/tree",
+    tags=["repo"],
+    summary="TARGET_REPO_ROOT 의 폴더 계층",
+    description="git ls-tree -r HEAD 결과를 폴더 트리로 변환해 반환합니다. 유사도 분석 대상 파일 선택 UI 에서 사용.",
+)
+def get_repo_tree() -> dict:
+    import subprocess
+    r = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+        capture_output=True, text=True,
+        cwd=str(TARGET_REPO_ROOT),
+    )
+    if r.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"git ls-tree 실패 (TARGET_REPO_ROOT={TARGET_REPO_ROOT}): {r.stderr.strip()}",
+        )
+    paths = [line.strip() for line in r.stdout.splitlines() if line.strip()]
+    return {"root": str(TARGET_REPO_ROOT), "file_count": len(paths), "tree": _build_tree(paths)}
 
 
 if __name__ == "__main__":

@@ -72,15 +72,34 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-export default function SimilarityView() {
+interface Props {
+  file: string
+}
+
+export default function SimilarityView({ file }: Props) {
   const [results, setResults] = useState<SimilarityResult[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selectedRow, setSelectedRow] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch('/api/similarity')
-      .then(r => r.json())
+    if (!file) {
+      setResults([])
+      setError('')
+      return
+    }
+    setLoading(true)
+    setError('')
+    setResults([])
+    setSelectedRow(null)
+    fetch(`/api/similarity?file=${encodeURIComponent(file)}`)
+      .then(async r => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}))
+          throw new Error(body.detail ?? `HTTP ${r.status}`)
+        }
+        return r.json()
+      })
       .then((data: SimilarityResult[]) => {
         setResults(data)
         setLoading(false)
@@ -89,7 +108,7 @@ export default function SimilarityView() {
         setError(e.message)
         setLoading(false)
       })
-  }, [])
+  }, [file])
 
   // 차트 데이터: 이전 커밋이 있는 행만 (첫 커밋은 비교 대상 없음)
   const chartData = results
@@ -348,9 +367,15 @@ export default function SimilarityView() {
         </>
       )}
 
-      {!loading && !error && results.length === 0 && (
+      {!loading && !error && results.length === 0 && file && (
         <p className="text-gray-500 text-sm text-center py-8">
-          수집된 커밋이 없습니다.
+          '{file}' 에 해당하는 커밋 히스토리가 없습니다.
+        </p>
+      )}
+
+      {!loading && !error && !file && (
+        <p className="text-gray-500 text-sm text-center py-8">
+          위쪽 트리에서 분석할 파일을 선택해주세요.
         </p>
       )}
     </div>

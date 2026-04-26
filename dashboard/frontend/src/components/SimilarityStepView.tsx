@@ -161,15 +161,35 @@ function CommitChip({
   )
 }
 
-export default function SimilarityStepView() {
+interface Props {
+  file: string
+}
+
+export default function SimilarityStepView({ file }: Props) {
   const [results, setResults] = useState<SimilarityResult[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [activeStep, setActiveStep] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch('/api/similarity')
-      .then(r => r.json())
+    if (!file) {
+      setResults([])
+      setError('')
+      setActiveStep(null)
+      return
+    }
+    setLoading(true)
+    setError('')
+    setResults([])
+    setActiveStep(null)
+    fetch(`/api/similarity?file=${encodeURIComponent(file)}`)
+      .then(async r => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}))
+          throw new Error(body.detail ?? `HTTP ${r.status}`)
+        }
+        return r.json()
+      })
       .then((data: SimilarityResult[]) => {
         setResults(data)
         // 변경이 있는 마지막 스텝을 기본 선택
@@ -181,7 +201,7 @@ export default function SimilarityStepView() {
         setLoading(false)
       })
       .catch(e => { setError(e.message); setLoading(false) })
-  }, [])
+  }, [file])
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
@@ -196,6 +216,17 @@ export default function SimilarityStepView() {
           낮을수록 이전 커밋과 크게 다른 코드입니다.
         </p>
       </div>
+
+      {!loading && !error && !file && (
+        <p className="text-gray-500 text-sm text-center py-8">
+          위쪽 트리에서 분석할 파일을 선택해주세요.
+        </p>
+      )}
+      {!loading && !error && file && results.length === 0 && (
+        <p className="text-gray-500 text-sm text-center py-8">
+          '{file}' 에 해당하는 커밋 히스토리가 없습니다.
+        </p>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center h-40 text-gray-500 text-sm gap-2">

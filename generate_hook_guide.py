@@ -565,7 +565,7 @@ METRICS = [
     ("커밋된 소스코드",
      "GitCommit\n(post-commit 훅)",
      "git commit → .patch 파일 + .snapshot.json 저장",
-     "e63fd66f (calculator.html 319줄)",
+     "(예: 마지막 GitCommit 1건)",
      "✅ 수집 가능",
      "diff + 전체 스냅샷 동시 저장"),
     ("검수 완료 커밋",

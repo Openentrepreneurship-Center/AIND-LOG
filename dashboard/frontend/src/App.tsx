@@ -7,12 +7,14 @@ import EventChart from './components/EventChart'
 import CommitView from './components/CommitView'
 import SimilarityView from './components/SimilarityView'
 import SimilarityStepView from './components/SimilarityStepView'
+import RepoTreePicker from './components/RepoTreePicker'
 
 export default function App() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [connected, setConnected] = useState(false)
   const [lastUpdated, setLastUpdated] = useState('')
   const [updateCount, setUpdateCount] = useState(0)
+  const [similarityFile, setSimilarityFile] = useState('')
   const esRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
@@ -112,11 +114,35 @@ export default function App() {
             {/* Commit View */}
             <CommitView />
 
+            {/* 유사도 분석 공통 파일 선택기 */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3 gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-violet-400" />
+                    유사도 분석 대상 파일
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    파일을 선택하면 아래 두 패널이 즉시 같은 파일로 분석됩니다.
+                  </p>
+                </div>
+                {similarityFile && (
+                  <button
+                    onClick={() => setSimilarityFile('')}
+                    className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1"
+                  >
+                    선택 해제
+                  </button>
+                )}
+              </div>
+              <RepoTreePicker value={similarityFile} onSelect={setSimilarityFile} />
+            </div>
+
             {/* Similarity Step View (단계별 수치) */}
-            <SimilarityStepView />
+            <SimilarityStepView file={similarityFile} />
 
             {/* Similarity Chart View (추이 차트) */}
-            <SimilarityView />
+            <SimilarityView file={similarityFile} />
 
             {/* Event Log */}
             <EventLog events={data.events} />

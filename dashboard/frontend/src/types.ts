@@ -111,3 +111,17 @@ export interface DashboardData {
     tools: CountItem[]
   }
 }
+
+// ── Repo Tree (파일 선택 GUI) ──────────────────────────────────────────────
+export interface RepoTreeNode {
+  name: string
+  type: 'dir' | 'file'
+  path: string
+  children?: RepoTreeNode[]
+}
+
+export interface RepoTree {
+  root: string
+  file_count: number
+  tree: RepoTreeNode
+}
