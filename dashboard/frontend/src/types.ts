@@ -4,6 +4,46 @@ export interface Summary {
   total_resumes: number
   rework_rate: number
   reviewed_commits: number
+  total_writes: number
+  total_reads: number
+  file_rework_count: number
+  file_rework_rate: number
+  read_write_ratio: number
+  model_usage: Record<string, number>
+  top_model: string
+  unique_models: number
+}
+
+export interface ProjectSimilarityResult {
+  sha: string
+  sha_short: string
+  prev_sha: string
+  prev_sha_short: string
+  message: string
+  ts_kst: string
+  files_changed: number
+  total_files: number
+  changed_size: number
+  total_size: number
+  scores: SimilarityScores
+  raw_scores: SimilarityScores
+}
+
+export interface FirstLastSimilarity {
+  file: string
+  first_sha: string
+  first_sha_short: string
+  first_message: string
+  first_ts_kst: string
+  last_sha: string
+  last_sha_short: string
+  last_message: string
+  last_ts_kst: string
+  total_commits: number
+  first_size: number
+  last_size: number
+  scores: SimilarityScores
+  avg_step_scores: SimilarityScores
 }
 
 export interface Task {

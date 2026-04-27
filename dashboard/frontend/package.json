@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:calc": "vite --config vite.config.calc.ts",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

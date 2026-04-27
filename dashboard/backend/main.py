@@ -24,7 +24,9 @@ from pydantic import BaseModel, Field
 
 # ── paths ──────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent.parent / ".cline-metrics"
-EVENTS_PATH = ROOT / "events.jsonl"
+# EVENTS_FILE 환경변수로 다른 events 파일 지정 가능 (예: events_decapet.jsonl)
+_events_filename = os.environ.get("EVENTS_FILE", "events_decapet.jsonl")
+EVENTS_PATH = ROOT / _events_filename
 FINAL_DIR = ROOT / "final"
 
 # 유사도 분석 대상 repo 표시 경로 (UI/응답용)
@@ -56,6 +58,14 @@ class SummaryModel(BaseModel):
     total_resumes: int = Field(..., description="TaskResume 이벤트가 발생한 작업 수")
     rework_rate: float = Field(..., description="재업무율(%) = total_resumes / total_tasks × 100")
     reviewed_commits: int = Field(..., description="커밋 메시지에 [reviewed] 태그가 포함된 검수 완료 커밋 수")
+    total_writes: int = Field(..., description="전체 write_to_file 호출 횟수")
+    total_reads: int = Field(..., description="전체 read_file 호출 횟수")
+    file_rework_count: int = Field(..., description="동일 파일을 2회 이상 write_to_file 한 파일 수 (재작업 추정치)")
+    file_rework_rate: float = Field(..., description="파일 재작업률(%) = file_rework_count / unique_written_files × 100")
+    read_write_ratio: float = Field(..., description="읽기/쓰기 비율 = total_reads / total_writes (낮을수록 효율적 코드 생성)")
+    model_usage: dict[str, int] = Field(..., description="모델별 이벤트 발생 횟수 {'provider/slug': count}")
+    top_model: str = Field(..., description="가장 많이 사용된 모델 (provider/slug)")
+    unique_models: int = Field(..., description="사용된 고유 모델 수")
 
 
 class TestRunModel(BaseModel):
@@ -322,13 +332,15 @@ def process(events: list[dict]) -> dict:
         "success_tool_count": 0,
         "write_count": 0, "read_count": 0, "exec_count": 0,
         "test_runs": [], "first_code_ts": None,
-        "file_paths": set(), "last_event": "", "last_result": "",
+        "file_paths": set(), "file_write_counts": defaultdict(int),
+        "last_event": "", "last_result": "",
         "event_count": 0,
     })
 
     event_list: list[dict] = []
     event_type_counts: dict[str, int] = defaultdict(int)
     tool_counts: dict[str, int] = defaultdict(int)
+    model_usage: dict[str, int] = defaultdict(int)
     last_task_id: str | None = None
 
     for idx, ev in enumerate(events, start=1):
@@ -350,6 +362,24 @@ def process(events: list[dict]) -> dict:
         event_type_counts[event] += 1
         if event in ("PreToolUse", "PostToolUse") and tool_name:
             tool_counts[tool_name] += 1
+        if provider and slug:
+            model_usage[f"{provider}/{slug}"] += 1
+
+        # GitCommit 이벤트는 payload 가 없으므로 snapshot 데이터로 보강
+        git_sha = ev.get("sha", "")
+        enriched_payload = payload
+        if event == "GitCommit" and git_sha and not payload:
+            snap = _load_snapshot(git_sha)
+            changed = snap.get("changed_files", [])
+            all_files_count = len(snap.get("all_files", {}))
+            enriched_payload = {
+                "sha": git_sha,
+                "message": ev.get("message", ""),
+                "changed_files": changed,
+                "changed_files_count": len(changed),
+                "total_files_in_snapshot": all_files_count,
+                "has_snapshot": bool(snap),
+            }
 
         event_list.append({
             "idx": idx,
@@ -363,10 +393,10 @@ def process(events: list[dict]) -> dict:
             "success": success,
             "exec_sec": _sec(exec_raw) if isinstance(exec_raw, (int, float)) else None,
             "model": f"{provider}/{slug}" if provider else "",
-            "git_sha": ev.get("sha", ""),
+            "git_sha": git_sha,
             "git_message": ev.get("message", ""),
             "clineVersion": ev.get("clineVersion", ""),
-            "raw_payload": payload,
+            "raw_payload": enriched_payload,
             "prompt": payload.get("prompt", ""),
             "initial_task": (payload.get("taskMetadata") or {}).get("initialTask") or payload.get("task", ""),
             "result_preview": str((payload.get("taskMetadata") or {}).get("result", "") or payload.get("result", ""))[:500],
@@ -424,6 +454,8 @@ def process(events: list[dict]) -> dict:
                 t["success_tool_count"] += 1
             if tool_name == "write_to_file":
                 t["write_count"] += 1
+                if path_val:
+                    t["file_write_counts"][path_val] += 1
             if tool_name in ("read_file", "read_file_content"):
                 t["read_count"] += 1
             if tool_name == "execute_command":
@@ -448,6 +480,10 @@ def process(events: list[dict]) -> dict:
     task_list: list[dict] = []
     total_starts = 0
     total_resumes = 0
+    total_writes = 0
+    total_reads = 0
+    unique_written_files: set[str] = set()
+    rework_file_count = 0
 
     for tid, t in tasks.items():
         if t["start_ts"] is None:
@@ -455,6 +491,12 @@ def process(events: list[dict]) -> dict:
         total_starts += 1
         if t["resumed"]:
             total_resumes += 1
+        total_writes += t["write_count"]
+        total_reads += t["read_count"]
+        for fp, cnt in t["file_write_counts"].items():
+            unique_written_files.add(fp)
+            if cnt > 1:
+                rework_file_count += 1
 
         dur_ms = (t["end_ts"] - t["start_ts"]) if t["start_ts"] and t["end_ts"] else None
         code_ms = (
@@ -502,6 +544,9 @@ def process(events: list[dict]) -> dict:
 
     task_list.sort(key=lambda x: x["start_ts"] or 0, reverse=True)
 
+    n_unique = len(unique_written_files)
+    sorted_models = sorted(model_usage.items(), key=lambda x: -x[1])
+    top_model = sorted_models[0][0] if sorted_models else ""
     return {
         "summary": {
             "total_events": len(events),
@@ -509,6 +554,14 @@ def process(events: list[dict]) -> dict:
             "total_resumes": total_resumes,
             "rework_rate": round(total_resumes / total_starts * 100, 1) if total_starts else 0,
             "reviewed_commits": len(reviewed_shas),
+            "total_writes": total_writes,
+            "total_reads": total_reads,
+            "file_rework_count": rework_file_count,
+            "file_rework_rate": round(rework_file_count / n_unique * 100, 1) if n_unique else 0.0,
+            "read_write_ratio": round(total_reads / max(total_writes, 1), 2),
+            "model_usage": dict(model_usage),
+            "top_model": top_model,
+            "unique_models": len(model_usage),
         },
         "tasks": task_list,
         "events": event_list,
@@ -739,12 +792,18 @@ def load_commits() -> list[dict]:
                 "task_id": ev.get("taskId") or None,
             }
 
+    # events.jsonl 에 있는 SHA만 허용 (현재 프로젝트 기준 커밋만 포함)
+    allowed_shas = set(git_events.keys()) if git_events else None
+
     # .patch 파일 기준으로 커밋 목록 구성
     patch_files = sorted(commits_dir.glob("*.patch"), key=lambda p: p.stat().st_mtime, reverse=True)
 
     result = []
     for pf in patch_files:
-        sha = pf.stem
+        sha = pf.stem  # .patch 단일 확장자이므로 stem = SHA 그대로
+        # 현재 events.jsonl 에 없는 SHA는 건너뜀 (다른 프로젝트 커밋 혼입 방지)
+        if allowed_shas is not None and sha not in allowed_shas:
+            continue
         patch_text = pf.read_text(encoding="utf-8", errors="ignore")
 
         snapshot_path = commits_dir / f"{sha}.snapshot.json"
@@ -1051,6 +1110,269 @@ def get_similarity(
     return results
 
 
+SOURCE_EXTS = {".java", ".kt", ".py", ".ts", ".tsx", ".js", ".jsx", ".html", ".css", ".go", ".rs", ".scala", ".cs", ".cpp", ".c", ".rb", ".php", ".swift"}
+
+
+class ProjectSimilarityResult(BaseModel):
+    """커밋 단위 프로젝트 전체 유사도."""
+    sha: str = Field(..., description="커밋 SHA")
+    sha_short: str = Field(..., description="커밋 SHA 단축형 (7자)")
+    prev_sha: str = Field(..., description="이전 커밋 SHA (없으면 빈 문자열)")
+    prev_sha_short: str = Field(..., description="이전 커밋 SHA 단축형")
+    message: str = Field(..., description="커밋 메시지")
+    ts_kst: str = Field(..., description="커밋 시각 (KST)")
+    files_changed: int = Field(..., description="이 커밋에서 변경된 소스 파일 수")
+    total_files: int = Field(..., description="전체 소스 파일 수 (스냅샷 기준)")
+    changed_size: int = Field(..., description="변경 파일 총 크기 (bytes)")
+    total_size: int = Field(..., description="전체 소스 파일 총 크기 (bytes)")
+    scores: SimilarityScores = Field(..., description="프로젝트 전체 가중 유사도 (변경 비중 반영)")
+    raw_scores: SimilarityScores = Field(..., description="변경 파일만의 평균 유사도 (비중 미반영)")
+
+
+_project_sim_cache: list[dict] | None = None
+
+
+def _is_source(path: str) -> bool:
+    if "." not in path.split("/")[-1]:
+        return False
+    ext = "." + path.rsplit(".", 1)[-1].lower()
+    return ext in SOURCE_EXTS
+
+
+def _strip_prefix(path: str) -> str:
+    if TARGET_REPO_PREFIX and path.startswith(TARGET_REPO_PREFIX):
+        return path[len(TARGET_REPO_PREFIX):]
+    return path
+
+
+@app.get(
+    "/api/similarity/project",
+    response_model=list[ProjectSimilarityResult],
+    tags=["similarity"],
+    summary="프로젝트 전체 단위 코드 유사도",
+    description="""
+커밋마다 **변경된 소스 파일들의 유사도**를 집계해 프로젝트 전체 변화율을 측정합니다.
+
+### 계산 방식
+1. 각 커밋에서 변경된 소스 파일(`changed_files`)을 추출합니다.
+2. 파일별로 이전 버전 ↔ 현재 버전을 L1~L4로 측정합니다.
+3. **파일 크기 가중 평균**으로 `raw_scores`(변경 파일 평균)를 계산합니다.
+4. 변경 비중(`changed_size / total_size`)을 반영해 `scores`(전체 프로젝트 가중치)를 계산합니다.
+   - 소수 파일만 변경된 커밋 → 높은 scores (대부분 코드가 그대로)
+   - 많은 파일이 대폭 변경 → 낮은 scores
+
+- 소스 파일 확장자: `.java .kt .py .ts .tsx .js .html .css .go .rs` 등
+- 결과는 메모리에 캐시됩니다. `?refresh=true`로 재계산할 수 있습니다.
+""",
+)
+def get_project_similarity(
+    refresh: bool = Query(False, description="캐시 무시 여부"),
+) -> list[dict]:
+    global _project_sim_cache
+    if not refresh and _project_sim_cache is not None:
+        return _project_sim_cache
+
+    from similarity import compute_all
+
+    # 모든 커밋을 시간순 정렬
+    all_commits = load_commits()
+    if not all_commits:
+        raise HTTPException(404, "커밋 데이터가 없습니다.")
+    commits_asc = sorted(all_commits, key=lambda c: c["ts"] or 0)
+
+    results: list[dict] = []
+    for i, commit in enumerate(commits_asc):
+        sha = commit["sha"]
+        prev_sha = commits_asc[i - 1]["sha"] if i > 0 else ""
+        prev_sha_short = prev_sha[:7] if prev_sha else ""
+
+        # 이번 커밋의 all_files (경로 정규화)
+        curr_map: dict[str, str] = {}
+        for sf in commit.get("snapshot_files", []):
+            short = _strip_prefix(sf["path"])
+            if _is_source(short):
+                curr_map[short] = sf["content"]
+
+        total_size = sum(len(v.encode("utf-8")) for v in curr_map.values())
+        total_files = len(curr_map)
+
+        if i == 0 or not prev_sha:
+            results.append({
+                "sha": sha, "sha_short": sha[:7],
+                "prev_sha": "", "prev_sha_short": "",
+                "message": commit["message"], "ts_kst": commit["ts_kst"],
+                "files_changed": 0, "total_files": total_files,
+                "changed_size": 0, "total_size": total_size,
+                "scores": {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0},
+                "raw_scores": {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0},
+            })
+            continue
+
+        # 이전 커밋 all_files
+        prev_commit = commits_asc[i - 1]
+        prev_map: dict[str, str] = {}
+        for sf in prev_commit.get("snapshot_files", []):
+            short = _strip_prefix(sf["path"])
+            if _is_source(short):
+                prev_map[short] = sf["content"]
+
+        # changed_files 정규화
+        changed = [_strip_prefix(p) for p in commit.get("changed_files", [])]
+        changed_source = [p for p in changed if _is_source(p)]
+
+        if not changed_source:
+            results.append({
+                "sha": sha, "sha_short": sha[:7],
+                "prev_sha": prev_sha, "prev_sha_short": prev_sha_short,
+                "message": commit["message"], "ts_kst": commit["ts_kst"],
+                "files_changed": 0, "total_files": total_files,
+                "changed_size": 0, "total_size": total_size,
+                "scores": {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0},
+                "raw_scores": {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0},
+            })
+            continue
+
+        # 파일별 유사도 계산 (크기 가중)
+        weighted: dict[str, float] = {"L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0}
+        changed_weight = 0
+        for fp in changed_source:
+            old = prev_map.get(fp, "")
+            new = curr_map.get(fp, "")
+            if not old and not new:
+                continue
+            sc = compute_all(old, new)
+            w = len((new or old).encode("utf-8"))
+            for k in weighted:
+                weighted[k] += sc[k] * w
+            changed_weight += w
+
+        if changed_weight == 0:
+            raw_scores = {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0}
+        else:
+            raw_scores = {k: round(v / changed_weight, 4) for k, v in weighted.items()}
+
+        # 프로젝트 전체 가중치 반영
+        # project_score = 1 - (1 - raw_score) * (changed_size / total_size)
+        ratio = changed_weight / max(total_size, 1)
+        scores = {
+            k: round(1.0 - (1.0 - raw_scores[k]) * ratio, 4)
+            for k in raw_scores
+        }
+
+        results.append({
+            "sha": sha, "sha_short": sha[:7],
+            "prev_sha": prev_sha, "prev_sha_short": prev_sha_short,
+            "message": commit["message"], "ts_kst": commit["ts_kst"],
+            "files_changed": len(changed_source),
+            "total_files": total_files,
+            "changed_size": changed_weight,
+            "total_size": total_size,
+            "scores": scores,
+            "raw_scores": raw_scores,
+        })
+
+    _project_sim_cache = results
+    return results
+
+
+class FirstLastSimilarity(BaseModel):
+    """첫 번째 ↔ 마지막 커밋 유사도 비교 결과."""
+    file: str = Field(..., description="분석 파일 경로")
+    first_sha: str = Field(..., description="최초 커밋 SHA")
+    first_sha_short: str = Field(..., description="최초 커밋 SHA (7자)")
+    first_message: str = Field(..., description="최초 커밋 메시지")
+    first_ts_kst: str = Field(..., description="최초 커밋 시각 (KST)")
+    last_sha: str = Field(..., description="최신 커밋 SHA")
+    last_sha_short: str = Field(..., description="최신 커밋 SHA (7자)")
+    last_message: str = Field(..., description="최신 커밋 메시지")
+    last_ts_kst: str = Field(..., description="최신 커밋 시각 (KST)")
+    total_commits: int = Field(..., description="해당 파일의 전체 커밋 수")
+    first_size: int = Field(..., description="최초 커밋 파일 크기 (bytes)")
+    last_size: int = Field(..., description="최신 커밋 파일 크기 (bytes)")
+    scores: SimilarityScores = Field(..., description="최초↔최신 L1~L4 유사도 점수")
+    avg_step_scores: SimilarityScores = Field(..., description="모든 연속 스텝의 L1~L4 평균 (단계별 평균 변화량)")
+
+
+@app.get(
+    "/api/similarity/first-last",
+    response_model=FirstLastSimilarity,
+    tags=["similarity"],
+    summary="첫 커밋 ↔ 마지막 커밋 유사도",
+    description="""
+파일의 **최초 커밋**과 **가장 최신 커밋** 간 전체 코드 변화를 L1~L4로 측정합니다.
+
+- `avg_step_scores`: 연속 커밋 간 평균 유사도 (낮을수록 단계마다 큰 변화가 있었음을 의미)
+- `scores`: 처음 ↔ 끝 직접 비교 (전체 누적 변화량)
+""",
+    responses={404: {"description": "해당 파일의 커밋 히스토리 없음"}},
+)
+def get_similarity_first_last(
+    file: str = Query(..., description="분석할 파일 경로"),
+    refresh: bool = Query(False, description="캐시 무시 여부"),
+) -> dict:
+    from similarity import compute_all
+
+    commits = _git_commits_for_file(file)
+    if len(commits) < 2:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{file}' 의 커밋이 2개 미만입니다.",
+        )
+
+    first_sha, first_ts, first_msg = commits[0]
+    last_sha, last_ts, last_msg = commits[-1]
+    first_code = _git_file_at(first_sha, file)
+    last_code = _git_file_at(last_sha, file)
+
+    scores = compute_all(first_code, last_code) if first_code and last_code else {"L1":0.0,"L2":0.0,"L3":0.0,"L4":0.0}
+
+    # 단계별 평균 계산 (캐시 재활용)
+    cache_key = file
+    step_results = _similarity_cache.get(cache_key)
+    if not step_results or refresh:
+        step_results_raw: list[dict] = []
+        for i, (sha, ts_int, msg) in enumerate(commits):
+            if i == 0:
+                continue
+            old_code = _git_file_at(commits[i-1][0], file)
+            new_code = _git_file_at(sha, file)
+            if old_code and new_code:
+                step_results_raw.append(compute_all(old_code, new_code))
+        if step_results_raw:
+            avg = {
+                layer: round(sum(r[layer] for r in step_results_raw) / len(step_results_raw), 4)
+                for layer in ["L1","L2","L3","L4"]
+            }
+        else:
+            avg = {"L1":0.0,"L2":0.0,"L3":0.0,"L4":0.0}
+    else:
+        step_only = [r for r in step_results if r["prev_sha"] != ""]
+        if step_only:
+            avg = {
+                layer: round(sum(r["scores"][layer] for r in step_only) / len(step_only), 4)
+                for layer in ["L1","L2","L3","L4"]
+            }
+        else:
+            avg = {"L1":0.0,"L2":0.0,"L3":0.0,"L4":0.0}
+
+    return {
+        "file": file,
+        "first_sha": first_sha,
+        "first_sha_short": first_sha[:7],
+        "first_message": first_msg,
+        "first_ts_kst": _kst(first_ts * 1000) if first_ts else "",
+        "last_sha": last_sha,
+        "last_sha_short": last_sha[:7],
+        "last_message": last_msg,
+        "last_ts_kst": _kst(last_ts * 1000) if last_ts else "",
+        "total_commits": len(commits),
+        "first_size": len(first_code.encode("utf-8")),
+        "last_size": len(last_code.encode("utf-8")),
+        "scores": scores,
+        "avg_step_scores": avg,
+    }
+
+
 def _build_tree(paths: list[str]) -> dict:
     """평면 파일 경로 리스트를 폴더 계층 dict 로 변환."""
     root: dict = {"name": "", "type": "dir", "path": "", "children": []}
@@ -1087,17 +1409,42 @@ def _build_tree(paths: list[str]) -> dict:
 def get_repo_tree() -> dict:
     if not COMMITS_DIR.exists():
         raise HTTPException(500, "commits 디렉토리가 없습니다 (.cline-metrics/commits 비어있음).")
+
+    # events.jsonl 에 있는 SHA 목록만 사용 (현재 프로젝트 기준 스냅샷만 선택)
+    valid_shas: set[str] = set()
+    if EVENTS_PATH.exists():
+        with EVENTS_PATH.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    if d.get("event") == "GitCommit" and d.get("sha"):
+                        valid_shas.add(d["sha"])
+                except Exception:
+                    pass
+
     snaps = sorted(COMMITS_DIR.glob("*.snapshot.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not snaps:
         raise HTTPException(500, "snapshot.json 파일이 없습니다.")
+
+    # valid_shas 에 속하는 스냅샷 중 가장 최신 것 선택
+    # NOTE: p.stem 은 "abc123.snapshot" 이므로 .snapshot.json 제거 필요
+    chosen = None
+    if valid_shas:
+        for p in snaps:
+            snap_sha = p.name.replace(".snapshot.json", "")
+            if snap_sha in valid_shas:
+                chosen = p
+                break
+    if chosen is None:
+        chosen = snaps[0]
+
     try:
-        snap = json.loads(snaps[0].read_text(encoding="utf-8"))
+        snap = json.loads(chosen.read_text(encoding="utf-8"))
     except Exception as e:
         raise HTTPException(500, f"snapshot 파싱 실패: {e}")
     all_paths = sorted(snap.get("all_files", {}).keys())
     if TARGET_REPO_PREFIX:
         filtered = [p[len(TARGET_REPO_PREFIX):] for p in all_paths if p.startswith(TARGET_REPO_PREFIX)]
-        # prefix 매칭이 0건이면 백필 snapshot (prefix 없는 시점) 으로 간주, 원래 경로 그대로
         all_paths = filtered if filtered else all_paths
     return {"root": str(TARGET_REPO_ROOT), "file_count": len(all_paths), "tree": _build_tree(all_paths)}
 

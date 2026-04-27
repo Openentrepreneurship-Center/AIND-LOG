@@ -1,0 +1,178 @@
+{"ts": 1766370034000, "event": "GitCommit", "sha": "4d83be77a97a4286c910f8c1c8b14272c7a8279e", "message": "Initial Spring Boot project setup"}
+{"ts": 1766392786000, "event": "GitCommit", "sha": "9269f595376aa55fc023ddd03c1664432619ee1e", "message": "기능구현."}
+{"ts": 1766455263000, "event": "GitCommit", "sha": "44a293d202aad3ca35c1abfafdac470bc93c0f34", "message": "feat: CI/CD 배포 설정 및 API 응답 어노테이션 수정"}
+{"ts": 1766455801000, "event": "GitCommit", "sha": "d5fc14f62594fe6b835160b80ace7dfd939dfa78", "message": "fix: Dockerfile에서 Gradle 파일 경로 수정 (.kts → .gradle)"}
+{"ts": 1766456405000, "event": "GitCommit", "sha": "0d51a1a3efe7ad30a74c17e0e8324b310e6bd7be", "message": "fix: Dockerfile Gradle 버전 8.14로 업그레이드 (Spring Boot 4.0.1 호환성)"}
+{"ts": 1766463056000, "event": "GitCommit", "sha": "90e8a10bee96753bdda6c1d59d7b08ed40cba03c", "message": "feat: GitHub Actions 워크플로우 개선"}
+{"ts": 1766464034000, "event": "GitCommit", "sha": "5725f8f85b6b3b629415d5d08b6e1e3ff1daa063", "message": "Fix GitHub Actions workflow deployment scripts"}
+{"ts": 1766467676000, "event": "GitCommit", "sha": "d71b51b4d31f2d0a3a61f61f3e21816a6e4e4010", "message": "Add Spring Boot Actuator health check endpoint"}
+{"ts": 1767833682000, "event": "GitCommit", "sha": "28fc41a50dd6c87c0afec7e08229cbcade26eab0", "message": "feat: 사용자 수령인 정보 및 커스텀 상품 무게/개수 필드 추가"}
+{"ts": 1767937660000, "event": "GitCommit", "sha": "56e4c98285d07229f12ca76a83d7af4332e781b8", "message": "fix: SMS 전화번호 포맷 버그 수정 및 로깅 추가"}
+{"ts": 1767942011000, "event": "GitCommit", "sha": "63d186fa1b5076870c7779b6610774ba61abbda7", "message": "CorsConfig.java 수정"}
+{"ts": 1768193253000, "event": "GitCommit", "sha": "afbbb70489f887c498a88f589c4ae5d2514aeab7", "message": "feat: 게시글 제보 유형 및 익명 작성 기능 추가"}
+{"ts": 1768196471000, "event": "GitCommit", "sha": "593dc15edfd45f851c18713f26692c6534813ce5", "message": "refactor: 게시글 권한을 INFORMATION_SHARING에서 REPORT_CENTER로 변경"}
+{"ts": 1768404419000, "event": "GitCommit", "sha": "ba6c0c794e0ad4497cab83888451dad6548a579e", "message": "refactor: 어드민 로그인 OTP 2단계 인증 비활성화"}
+{"ts": 1768405670000, "event": "GitCommit", "sha": "1171764c7721204ed09fce6d533f0c341e263a69", "message": "보안 강화: CORS 취약점 수정 및 Rate Limit 조정"}
+{"ts": 1768408588000, "event": "GitCommit", "sha": "ed10074ed4490d3e76264bc5a9dcdd200c8a86f7", "message": "fix: CI 테스트 스킵 (DB 연결 불가)"}
+{"ts": 1768409522000, "event": "GitCommit", "sha": "67512d88e71579867e095790d4f009ce823fb5bc", "message": "Fix: Increase health check wait time to 30s for prod deployment"}
+{"ts": 1768409994000, "event": "GitCommit", "sha": "c6bd1bd5cdaf9c59008413b32c86580b3afc3f5b", "message": "Fix: Set Swagger server URL based on active profile (dev/prod)"}
+{"ts": 1768449267000, "event": "GitCommit", "sha": "b6e611eaaaa4ca9ec60cb0a4a67286aeaba851a7", "message": "fix: DataInitializer를 dev 환경에서만 실행되도록 제한"}
+{"ts": 1768453976000, "event": "GitCommit", "sha": "ed8dc4926b9c817251394d7074b8e83cbec42143", "message": "feat: 관리자 회원 목록 API 반려동물 상세 정보 추가"}
+{"ts": 1768454533000, "event": "GitCommit", "sha": "6c0914dee8853eb27562c0f1c5491b6726e7e97f", "message": "fix: CORS에 API 서브도메인 추가"}
+{"ts": 1768462957000, "event": "GitCommit", "sha": "7c1c37d5108a1dac1ba28c70fa4a657d20635f2c", "message": "refactor: buyerGrade 필드 값 제한 (null, 1, 2, 3, 4)"}
+{"ts": 1768476812000, "event": "GitCommit", "sha": "69330853fae4cf61470d9d129347a6fd3b393ed9", "message": "chore: add production profile with ddl-auto=validate"}
+{"ts": 1768477125000, "event": "GitCommit", "sha": "63ceeabd46cb3cdd941a20ce269d1cfcf818cecb", "message": "Merge dev into main: buyerGrade 제한, CORS 수정, 관리자 API 개선, DataInitializer 제한"}
+{"ts": 1768874505000, "event": "GitCommit", "sha": "a515a5be6805589caf8e6fbb8269b2b79794e602", "message": "refactor: 엔티티 NOT NULL 제약 조건 추가 및 DataInitializer 삭제"}
+{"ts": 1768879677000, "event": "GitCommit", "sha": "c1f6ec66ef9dfaa955b2158cad2949f41849d3c8", "message": "refactor: Soft Delete 일관성 개선"}
+{"ts": 1768887897000, "event": "GitCommit", "sha": "9a8ee0219225a4e0f1a6431140039185f4fe5c1d", "message": "feat: User 엔티티에 adminMemo2 필드 추가"}
+{"ts": 1768888243000, "event": "GitCommit", "sha": "226b0aa9b64293ba4379e0b67348b172225837aa", "message": "feat: User/Pet 엔티티에 uniqueNumber 필드 추가 및 회원 탈퇴 로직 개선"}
+{"ts": 1768892288000, "event": "GitCommit", "sha": "53dde3b10513a898dbbeeb5f885f6fc99554bad1", "message": "feat: 비밀번호 찾기/재설정 기능 추가"}
+{"ts": 1768892300000, "event": "GitCommit", "sha": "74a26c26a637b95a5a31d8bda90fefd809b788ff", "message": "refactor: AdminPetController 분리"}
+{"ts": 1768983268000, "event": "GitCommit", "sha": "3b4d009a2027595cca1424d5e9aca81c82db9b3f", "message": "feat: 관리자 회원 탈퇴 기능 추가"}
+{"ts": 1768985764000, "event": "GitCommit", "sha": "914b88c713b5bf70adcf71639984a3aadf253133", "message": "feat: 회원 목록 조회 API에 uniqueNumber, withdrawn 필드 추가"}
+{"ts": 1768993325000, "event": "GitCommit", "sha": "c40f8bab5965a6e683b7fd6dffcaddb4e6c315b5", "message": "feat: Flyway V2 마이그레이션 추가 - 엔티티 정합성 맞춤"}
+{"ts": 1769074268000, "event": "GitCommit", "sha": "8ec381627e58724a732eb7a875190a4dae91abdc", "message": "feat: 내 반려동물 목록 API에 uniqueNumber 필드 추가"}
+{"ts": 1769235407000, "event": "GitCommit", "sha": "c5a231321b4f03b5d8868d6365faf9e0f00463ab", "message": "fix: 관리자 회원 목록 API vets 중복 문제 해결"}
+{"ts": 1770263396000, "event": "GitCommit", "sha": "544ff613cf66ae7eed4a18fca6b7f9c7670c9dc2", "message": "refactor: PostStatus enum 제거"}
+{"ts": 1770264403000, "event": "GitCommit", "sha": "b0c4317ae84c1ba88122521195bdb2b820efbffb", "message": "feat: Admin Board API에 PostType 필터링 및 S3 파일 삭제 기능 추가"}
+{"ts": 1770268248000, "event": "GitCommit", "sha": "b55d02ef61b0bd2b0c36a52d658c977fed34bf7c", "message": "refactor: 관리자 답변(adminResponse) 기능 제거"}
+{"ts": 1770269328000, "event": "GitCommit", "sha": "3cf5ad158ce37c491c2ae57a0e2c424f616fa7d1", "message": "feat: 사이트 설정(Site Setting) 도메인 추가"}
+{"ts": 1771480415000, "event": "GitCommit", "sha": "074f7345298643569b7ca72357e2cdeac2b52ab8", "message": "feat: 상품 관리 API 개선 및 관리자 페이지 싱크"}
+{"ts": 1771552007000, "event": "GitCommit", "sha": "52f74b1f64c096a573b6c75f86abdb6cdf794f8f", "message": "feat: CustomProduct에 Pet 연관관계 추가"}
+{"ts": 1771552674000, "event": "GitCommit", "sha": "87ca4e44f6f4c5a28e2e35edf35e6f569e87b0ed", "message": "fix: add flyway-database-postgresql for Spring Boot 4.0 compatibility"}
+{"ts": 1771639909000, "event": "GitCommit", "sha": "ad4ff5a15983e08ac1d1f09944b795587f68b002", "message": "docs: Swagger 문서 싱크 및 CustomProduct 응답 필드 보완"}
+{"ts": 1771759846000, "event": "GitCommit", "sha": "206c2eb7062d6e61bc0cce106f800abd5ea1884f", "message": "feat: Admin Appointment API에 timeSlotId 필터링 기능 추가"}
+{"ts": 1771836426000, "event": "GitCommit", "sha": "0b30d0fe0a3a76c896a48dccab6ec7ad3b559a00", "message": "feat: 주문 생성 시 장바구니 자동 비우기"}
+{"ts": 1771836436000, "event": "GitCommit", "sha": "a19184ad09f6a97af046b80d260f2f3e1a0b711c", "message": "feat: Medicine에 salePrice, salesStatus, additionalInfo 필드 추가"}
+{"ts": 1771850612000, "event": "GitCommit", "sha": "5f25c69aad9a220ce3d2902255870ecc763c1288", "message": "fix: 주문번호 중복 생성 버그 수정"}
+{"ts": 1771859014000, "event": "GitCommit", "sha": "35f369c2633055545bcb50a557089f589ae60b19", "message": "refactor: MedicineCart를 사용자 기반으로 재설계"}
+{"ts": 1771859109000, "event": "GitCommit", "sha": "25e001c7a379b885fb0285493f5371c24de6f7a0", "message": "feat: FeaturedProductResponse에 weight 필드 추가"}
+{"ts": 1771859397000, "event": "GitCommit", "sha": "a65981148c316937e6c8a467cfe2c35703a11ae8", "message": "fix: AppointmentService가 변경된 MedicineCartService API 사용하도록 수정"}
+{"ts": 1771859885000, "event": "GitCommit", "sha": "c9194b4e6e8dbf92d85467be617b31f150794dcf", "message": "fix: SecurityConfig에서 medicine-cart 엔드포인트 경로 수정"}
+{"ts": 1771860194000, "event": "GitCommit", "sha": "ec009f004732c0708b91b4fa56935fca4ccfc47d", "message": "refactor: medicine-cart → medicine-carts 엔드포인트 변경"}
+{"ts": 1771899672000, "event": "GitCommit", "sha": "04815c4c6f7efd264632a25e081aede46a38a7dd", "message": "feat: MedicineCart에 TimeSlot 연결 및 검증 로직 추가"}
+{"ts": 1771938206000, "event": "GitCommit", "sha": "c3aa376893b2740bcd209ab2a687bfe90950135b", "message": "feat: TimeSlot 만료 검증 및 처방 신청 API 추가"}
+{"ts": 1771996036000, "event": "GitCommit", "sha": "2eaed68526e693ebf744cc4a2630bd69fe75d764", "message": "feat: 의약품 장바구니에 처방전 담기 기능 추가"}
+{"ts": 1771998135000, "event": "GitCommit", "sha": "831f4f6e785ccea693620f38f29a976b07d41176", "message": "feat: Appointment에 처방전 지원 추가 및 에러 메시지 개선"}
+{"ts": 1772010659000, "event": "GitCommit", "sha": "b98ed6244a794736c10f55c5962b474ed2c76285", "message": "feat: Appointment/Prescription 응답 DTO 필드 확장"}
+{"ts": 1772022918000, "event": "GitCommit", "sha": "b0a978c0a29b0824ae244b3ad2c99899809aa3f1", "message": "feat: AppointmentResponse/PrescriptionResponse에 사용자·반려동물·스케줄 정보 추가"}
+{"ts": 1772025713000, "event": "GitCommit", "sha": "ac8e348b72e54c1f9596d37cf8b4a13be02c0da6", "message": "feat: SiteSetting에 companyInfoHtml 리치 텍스트 필드 추가"}
+{"ts": 1772027161000, "event": "GitCommit", "sha": "6648841fb13107fc2cfe1dcdc6e2757587ed02a5", "message": "refactor: SiteSetting 기존 개별 회사정보 필드 제거"}
+{"ts": 1772071039000, "event": "GitCommit", "sha": "aff559cb7c16d14e55bbf2f995a9a761b36fe32a", "message": "refactor: 제보 게시판 익명 기능 제거"}
+{"ts": 1772071053000, "event": "GitCommit", "sha": "38d515c15bb528a26194c8d7394e6c62c2de65ca", "message": "feat: 그 외 동물 등록 지원 및 동물등록번호 필드 추가"}
+{"ts": 1772071063000, "event": "GitCommit", "sha": "17246672c4ee3e7d3afe1099ce0e7154d3745806", "message": "feat: 관리자 회원목록 최신 가입순 기본 정렬"}
+{"ts": 1772075840000, "event": "GitCommit", "sha": "c347e4ff8634aade2b7a4c2ad14c9b188ce3fa33", "message": "fix: V16 마이그레이션에 breeds_species_check 제약조건 갱신 추가"}
+{"ts": 1772110369000, "event": "GitCommit", "sha": "6841d8fa9228e8482326c3c17539e83dddcf2f3d", "message": "fix: 백엔드 종합 보안/안정성 개선 및 예외 처리 강화"}
+{"ts": 1772114027000, "event": "GitCommit", "sha": "1eacb8e50e655b7423824979523c2ce450f2de6b", "message": "feat: 사용자 목록 조회 API 최신순 정렬 기본 적용"}
+{"ts": 1772963531000, "event": "GitCommit", "sha": "c5b9ed7bb1c6dd317660f00bec74970ebb18bf6a", "message": "fix: savePetWithRetry/saveUserWithRetry 제거 및 Persistable 구현"}
+{"ts": 1772963538000, "event": "GitCommit", "sha": "3df752bed690361cd08024358d3dfbc1d6d70e12", "message": "feat: 동물등록번호 12자리에서 15자리로 변경"}
+{"ts": 1772963547000, "event": "GitCommit", "sha": "8099e7a794ecf9757fe1d5449d1a3cd6f598192c", "message": "feat: 회원 정보 관리 API 연동 (연락처 SMS 인증, 비밀번호 변경)"}
+{"ts": 1772963554000, "event": "GitCommit", "sha": "48afb9980c91fed697b4136a175bdff3cf94d851", "message": "feat: 회원 탈퇴 기능 개선 및 withdrawn 필드 제거"}
+{"ts": 1772965602000, "event": "GitCommit", "sha": "f7eb073bd2b4bee1bfabb373239a7a0ecc1d9260", "message": "fix: User 삭제 cascade 누락 보완 및 Appointment 조회 안전 처리"}
+{"ts": 1772973734000, "event": "GitCommit", "sha": "21fe801e16871f015173d0d2219ac8a3a2826313", "message": "feat: 토스페이먼츠 결제 승인 연동 (ORDER 결제)"}
+{"ts": 1772975990000, "event": "GitCommit", "sha": "5ded8a4cea0d335a33c17d664e4018f824b988bd", "message": "fix: deploy 워크플로우에 TOSSPAYMENTS_SECRET_KEY 환경변수 추가"}
+{"ts": 1773022513000, "event": "GitCommit", "sha": "73e62965fb18f273f001c0e946280c990aa625bc", "message": "feat: TermType에 REFUND(환불정책) 추가"}
+{"ts": 1773028890000, "event": "GitCommit", "sha": "15e3d6e5fa2d09526b4cec5c679a430ab805ccf0", "message": "feat: 환불정책을 약관(Terms)에서 사이트 설정(SiteSettings)으로 이관"}
+{"ts": 1773280317000, "event": "GitCommit", "sha": "d32f2320a5ef3150e3fcc980d46d9218c4e9612e", "message": "fix: 시나리오 분석 기반 보안 취약점 Quick Wins 패치 (Phase 1)"}
+{"ts": 1773319211000, "event": "GitCommit", "sha": "6a70e43f367a0a8d36f0c21d7297234fbc1ab44a", "message": "feat: 보안 강화 및 인프라 개선 (Phase 2-9)"}
+{"ts": 1773319517000, "event": "GitCommit", "sha": "8f020c8831d77659503f61d3fc141b5956522962", "message": "fix: deploy 워크플로우에 OTP_ENCRYPTION_KEY 환경변수 추가"}
+{"ts": 1773324414000, "event": "GitCommit", "sha": "28280b0479c3d1e764feeab72f9955628291038e", "message": "fix: AesEncryptor Base64 키 디코딩 누락 수정"}
+{"ts": 1773326422000, "event": "GitCommit", "sha": "158730b8fda4b4f3f7ff29428c5aa786eabd6db6", "message": "fix: UserDeletionEventListener @Transactional propagation을 REQUIRES_NEW로 변경"}
+{"ts": 1773327313000, "event": "GitCommit", "sha": "3660aa5140fedd5d228adaa950c87fad837fb4d6", "message": "fix: S3 presigned URL 이중 인코딩 문제 수정"}
+{"ts": 1773330700000, "event": "GitCommit", "sha": "044bb8f30a6f2b4dd60ac2fc78cd2f36ded5325c", "message": "fix: DTO 유효성 검증 강화 및 에러 메시지 한글화"}
+{"ts": 1773376267000, "event": "GitCommit", "sha": "9c68990a0aca644e5a8941535f1f11dd15dd1e89", "message": "test: QA 자동화 테스트 추가 (유닛 + 통합 160개)"}
+{"ts": 1773668578000, "event": "GitCommit", "sha": "35086cd9e12b66ee26c39019ce04f0f16a13dd57", "message": "feat: SA 시나리오 분석 보안 취약점 수정 및 검증 테스트 추가"}
+{"ts": 1773670314000, "event": "GitCommit", "sha": "1911f80cf514b48f934f69ad1f43c0248376dfe5", "message": "feat: 결제 시 입금 계좌 정보(은행명/계좌번호) 입력 기능 추가"}
+{"ts": 1773673141000, "event": "GitCommit", "sha": "cf957cf8cb009ea61b62e7149480fc753fb8dd50", "message": "fix: 출장진료 신청 시 PENDING 상태에서도 결제 생성 허용"}
+{"ts": 1773719978000, "event": "GitCommit", "sha": "8ca752a70708a438dad5fdc222372d0b30297ffa", "message": "test: 시나리오 기반 통합 테스트 전면 교체 (SC-01~SC-16, 81개)"}
+{"ts": 1773813209000, "event": "GitCommit", "sha": "9a7db1172a36e2ece44faa4727181a70b53760b5", "message": "fix: SA 미해결 항목 수정 — 사용자 계정 잠금 정책 및 관리자 검색/페이징 기능 추가"}
+{"ts": 1773818320000, "event": "GitCommit", "sha": "8a2fbf4b72ccad1decc0639aabc7f0d2c7e4b121", "message": "fix: 사용자/관리자 쿠키 이름 분리로 동시 로그인 충돌 해결"}
+{"ts": 1773887710000, "event": "GitCommit", "sha": "059a44010a29abc53fdc10a21a9ef57d469357ee", "message": "fix: 결제 승인 실패 및 만료 주문 취소 오류 수정 + 비밀번호 특수문자 허용 확장"}
+{"ts": 1773895502000, "event": "GitCommit", "sha": "cd5ba68a51c6b153bf3a9bdef80bc70e4c198248", "message": "refactor: 택배사(carrier) 필드 전면 제거"}
+{"ts": 1773896507000, "event": "GitCommit", "sha": "afbb782c7bf6820dbc8f5cf791a7447cf0eb3697", "message": "fix: 운송장 일괄 등록 시 UnexpectedRollbackException 수정"}
+{"ts": 1773899038000, "event": "GitCommit", "sha": "a2c79ce8382c59b8c8872c53b61c1234d15ce7a8", "message": "feat: 사용자 주문 응답에 trackingNumber 추가"}
+{"ts": 1773901917000, "event": "GitCommit", "sha": "ba248c2a5b7cc80c0d9a561c6b49c6b6da8d07a1", "message": "feat: 배송 상태 관리 기능 추가 (SHIPPED 전환, 구매확정, 자동확정)"}
+{"ts": 1773903906000, "event": "GitCommit", "sha": "222c0fda11c3b6ff3feb067f70fd7a1a76e6045d", "message": "fix: 관리자 주문목록 정렬 수정 및 PENDING 주문 만료 스케줄러 안정화"}
+{"ts": 1773904181000, "event": "GitCommit", "sha": "be06675b0eaebd41e3ecb3f84010a99cdd87152e", "message": "fix: 관리자 주문목록 상태 우선순위 정렬 (CASE WHEN)"}
+{"ts": 1773905927000, "event": "GitCommit", "sha": "aaf0349b75819dc99800557efca2904dbb95e2d9", "message": "fix: 만료 주문 취소 시 detached entity 문제 해결"}
+{"ts": 1773907137000, "event": "GitCommit", "sha": "e4be25b879fe5e66ac09e3719fbe2d6b7ffd564a", "message": "fix: 관리자 주문목록 상태 우선순위 변경"}
+{"ts": 1773907891000, "event": "GitCommit", "sha": "fc69ddb49a591be9912cb3efabe337bf35920e0f", "message": "fix: Jackson timezone을 Asia/Seoul로 설정"}
+{"ts": 1773908741000, "event": "GitCommit", "sha": "dc737d69d1638329ea50e3243a4529435533953e", "message": "fix: JVM 타임존을 Asia/Seoul로 설정"}
+{"ts": 1773910337000, "event": "GitCommit", "sha": "776129e1f7683ec604aaaf3fdeb85ecde9d9866a", "message": "fix: 운송장 입력 시 REQUIRES_NEW 제거 및 주문 상태 전환 수정"}
+{"ts": 1773910431000, "event": "GitCommit", "sha": "a5fcd2ed2032d4bc52f6b0598eb91c4b2702a49b", "message": "fix: 관리자 주문목록 같은 상태 내 과거순 정렬로 변경"}
+{"ts": 1773918648000, "event": "GitCommit", "sha": "d8085b317ec56d2178f04cdf34509718a96541df", "message": "fix: 커스텀 상품 신청 weight 필드에 @NotNull 검증 추가"}
+{"ts": 1773970882000, "event": "GitCommit", "sha": "4326a3ce04656f3ffe6f3748727a3e66dd057f35", "message": "fix: 처방 신청 시 DB 미적재 버그 수정"}
+{"ts": 1773973544000, "event": "GitCommit", "sha": "d6b68df5752c8140462c51d9518d9aefd620b85b", "message": "feat: 커스텀 상품 수정 API 추가 (PUT /admin/custom-products/{id})"}
+{"ts": 1774001115000, "event": "GitCommit", "sha": "57e582be1a90484b059726c85eb73f5a01107a1c", "message": "fix: TermsConsentFilter 비활성화 (약관 버전업 후 로그인 불가 수정)"}
+{"ts": 1774025093000, "event": "GitCommit", "sha": "75448eab445110417a352c8c3f2480c68ea3b3d5", "message": "feat: 관리자 약관 목록 API 페이징 지원 추가"}
+{"ts": 1774030675000, "event": "GitCommit", "sha": "a1b482af46af620c1a18fd6f11bcbb29fad4bdcc", "message": "feat: 관리자 주문취소 API, 맞춤상품 삭제 API, 배송완료 제거, 예약 상태제한 해제"}
+{"ts": 1774069125000, "event": "GitCommit", "sha": "9cde522b6d405fe3bd5b208fd63776ea5c27101f", "message": "fix: 맞춤 상품 승인/반려 후 상태 재변경 허용"}
+{"ts": 1774070802000, "event": "GitCommit", "sha": "b6ea6eb7ac5b119b79c1ce5d346161bae33236c4", "message": "feat: 의약품 검색 기능 추가 및 사용자 페이지 판매중단 상품 필터링"}
+{"ts": 1774071669000, "event": "GitCommit", "sha": "31b7a86916501e1db37a484db87d2e05ac39f1ad", "message": "fix: 의약품 검색 버그 수정, 상세 판매가 누락, @SQLRestriction 중복 제거"}
+{"ts": 1774072757000, "event": "GitCommit", "sha": "9ad1a793f9ce83474b60b0849df7c58d4e932454", "message": "fix: 배송비 4000원 → 3000원으로 수정"}
+{"ts": 1774181871000, "event": "GitCommit", "sha": "c18179ceef35fb98817dcb322a5aeebc94dd68f6", "message": "fix: 운송장 업로드 DataIntegrityViolation 수정 + Order/Delivery @SQLRestriction 중복 제거"}
+{"ts": 1774182401000, "event": "GitCommit", "sha": "e8df63c9ee4a915b7fd5cdb4441202ac8bdd76f9", "message": "fix: 운송장 업로드 중복 체크를 사전 검증으로 변경"}
+{"ts": 1774188464000, "event": "GitCommit", "sha": "9fea27d8b94af8d2b4c6dae13a8978dcc2fcab3f", "message": "fix: 운송장 업로드 TransactionTemplate으로 개별 트랜잭션 처리"}
+{"ts": 1774189567000, "event": "GitCommit", "sha": "a28b84452d1b038a072a8c4dac91fc33b16e01e5", "message": "fix: 주문 상태 DELIVERED 제거, SHIPPED(발송완료)로 통합"}
+{"ts": 1774191370000, "event": "GitCommit", "sha": "49f5ce8b05a820df329b91524f32c416ea1b3be2", "message": "feat: 관리자 OTP 2단계 인증 제거, 1단계 로그인으로 변경"}
+{"ts": 1774236237000, "event": "GitCommit", "sha": "8aca63a6780ac78d2652d0936970f7ad71a9aed0", "message": "fix: ResponseMapper에서 S3 presigned URL 제거 (주문 생성 500 에러 수정)"}
+{"ts": 1774237520000, "event": "GitCommit", "sha": "c01361bfc438e9f3ee55ee279bab6c89635d9ebc", "message": "fix: 주문번호 중복 충돌로 인한 주문 생성 500 에러 수정"}
+{"ts": 1774252790000, "event": "GitCommit", "sha": "985829386e471f847fa3994075dae4f17b11eaf3", "message": "feat: 제보 게시판 작성자 정보(이름/이메일/전화번호) 응답 추가"}
+{"ts": 1774254243000, "event": "GitCommit", "sha": "a13944caa21438856698a67792b0250074e5f0b1", "message": "fix: 권한 변경 시 토큰 블랙리스트로 즉시 반영되도록 수정"}
+{"ts": 1774256024000, "event": "GitCommit", "sha": "769c061d26fdc2ae1c4984696413e94cf7bf222d", "message": "Revert \"fix: 권한 변경 시 토큰 블랙리스트로 즉시 반영되도록 수정\""}
+{"ts": 1774404281000, "event": "GitCommit", "sha": "86f5eac2f08e3933a8a4b0d4d239aff60e20fe03", "message": "feat: 관리자 OTP 2단계 인증 재적용 및 비밀번호 변경 기능 추가"}
+{"ts": 1774410930000, "event": "GitCommit", "sha": "4211ce937078fb63d8c97117c9b1b80500afa387", "message": "feat: 주문 검색/정렬 개선 및 권한 제거 시 장바구니 초기화"}
+{"ts": 1774414453000, "event": "GitCommit", "sha": "05e65568a38cfd1eaa3568c4c29eaa8d68ea1ae1", "message": "feat: 배송비 동적 설정, 스팸 전화번호 플래그, 권한 제거 시 장바구니 초기화"}
+{"ts": 1774421223000, "event": "GitCommit", "sha": "482e74a8408da4ae27df5398c3f7c5eea77cfc25", "message": "feat: 처방전 시스템 스케줄→계정 기반 전환 및 상태 reversible 추가"}
+{"ts": 1774448355000, "event": "GitCommit", "sha": "8fe8fea4be46486ebb6a19a4bc7727e796bd3f4b", "message": "feat: 처방전 PAID 상태 가드 제거 및 회원 삭제 시 데이터 정리 전면 개선"}
+{"ts": 1774507938000, "event": "GitCommit", "sha": "42e57266a7b96ed3a3e7c05f64c8003be974f8d0", "message": "feat: 타임슬롯 정원 제한(20명) 및 유저 단위 중복 예약 방지"}
+{"ts": 1774509223000, "event": "GitCommit", "sha": "954f2647b8ae81a4181e0d6fe6d6365a60171c5b", "message": "feat: time_slots 테이블에 max_capacity 컬럼 추가 마이그레이션"}
+{"ts": 1774509923000, "event": "GitCommit", "sha": "c17924cf1fecb667a1f75301f2e0f4cb980ba219", "message": "feat: 입금자명(accountHolder) 필수 검증 추가"}
+{"ts": 1774510618000, "event": "GitCommit", "sha": "b3c6d91449323bdaeb628fd7a1c7a00841e2ed4e", "message": "feat: 입금자명 필수 검증 및 AppointmentResponse에 timeSlotId 추가"}
+{"ts": 1774523709000, "event": "GitCommit", "sha": "27c6f58279dd58bcf2a46e0f1532f3fc62b61a4d", "message": "fix: accountHolder 검증을 서비스 레이어로 이동 (ORDER 결제 오류 수정)"}
+{"ts": 1774589787000, "event": "GitCommit", "sha": "b31d87247376de37e6512114a26eaf92cd0590bb", "message": "fix: OTP setup 시 otpEnabled 즉시 활성화 방지 — verify 성공 후에만 활성화"}
+{"ts": 1774592704000, "event": "GitCommit", "sha": "d7ad2414a591c72ce47badb0c1f5ec073446ef3d", "message": "feat: 회원 검색에 반려동물 이름 추가 및 상품 검색 API 구현"}
+{"ts": 1774620176000, "event": "GitCommit", "sha": "f8bc737785a401acb8ef1cac08ac26d1e93ab7fc", "message": "feat: 커스텀 상품 검색 추가, 상품 무게 nullable, 의약품 정렬 기준 변경"}
+{"ts": 1774620760000, "event": "GitCommit", "sha": "26cac4bd59e687178d730c1c4b5d9b9fdaf488bc", "message": "fix: 커스텀 상품 Specification 조회 시 EntityGraph 누락 수정"}
+{"ts": 1774621784000, "event": "GitCommit", "sha": "74dd4671e02bd4aa2ac6d41b3089c6f6173ca10d", "message": "feat: 의약품 카테고리 OTHER(기타) 추가 및 PARASITE 라벨 기생충→기생충예방 변경"}
+{"ts": 1774621994000, "event": "GitCommit", "sha": "0d83e740fde728495ab8223d204455e9116dd7a7", "message": "fix: products.weight 컬럼 NOT NULL 제약 제거 (Flyway 마이그레이션)"}
+{"ts": 1774622347000, "event": "GitCommit", "sha": "9a9d97cb351732301c2e0a4ddf8107515c9e80e2", "message": "fix: medicines.type CHECK 제약에 OTHER 추가 (Flyway 마이그레이션)"}
+{"ts": 1774624292000, "event": "GitCommit", "sha": "a1b21e5c34f0c31b96d27a521f1ff4067080ec53", "message": "fix: 의약품 판매가(salePrice) 미표시 수정"}
+{"ts": 1774625796000, "event": "GitCommit", "sha": "4f161b9162e0e8a20bc4a1652f44c80d721e9823", "message": "feat: 입금 계좌 정보(bankName, accountNumber) 필드 제거"}
+{"ts": 1774660903000, "event": "GitCommit", "sha": "64dabfdf7c6a57727fce768aa6f4ffd5d245c7ac", "message": "feat: 예약 의약품 항목에 이미지 URL 추가"}
+{"ts": 1774662926000, "event": "GitCommit", "sha": "a0dc1610204446420e9a86de52c232c12cd13baa", "message": "feat: 예약 목록 조회 fromDate 필터 및 페이지네이션 개선"}
+{"ts": 1774666149000, "event": "GitCommit", "sha": "bdaf3d0963fdd7f81d7251b6c26c58f9d67b555a", "message": "feat: 처방전 PAID 상태 제거 및 테스트 코드 삭제"}
+{"ts": 1774679632000, "event": "GitCommit", "sha": "d52bd5f136036ccd637108ce9082f5f03567f31e", "message": "feat: 의약품 장바구니 TimeSlot 버그 수정 및 신청인 검색 기능 추가"}
+{"ts": 1774681134000, "event": "GitCommit", "sha": "8d363af306299278338f85dfa314b49edd3024bf", "message": "feat: SHIPPED 상태에서도 주문 취소 가능하도록 변경"}
+{"ts": 1774691061000, "event": "GitCommit", "sha": "f7799510dcf6889c7cfb970b2f73487aca1c3313", "message": "feat: 타임슬롯 예약가능 인원 설정 기능 추가 (기본값 1명)"}
+{"ts": 1774693033000, "event": "GitCommit", "sha": "adf7f57bad2e4672e03c0bf1591936866a8d83c7", "message": "feat: 진료일정 조회 시 지난 일정 필터링 (includePast 파라미터)"}
+{"ts": 1774694577000, "event": "GitCommit", "sha": "a20d760e1b88b82dea0aa8a0af9c15932175c028", "message": "fix: 처방 장바구니 수량 변경 가능하도록 제한 제거"}
+{"ts": 1774699994000, "event": "GitCommit", "sha": "7eff41608c7ac8838653b2cb3d102442fce69ea8", "message": "feat: 처방전 이미지 관리 기능 추가 (imageUrl 필드 + 승인 시 이미지 업로드)"}
+{"ts": 1774871753000, "event": "GitCommit", "sha": "dafbd7f384cf2c8fa0daf4333ad297c2f1d4097e", "message": "feat: 도서산간지역 추가 배송비 설정 기능"}
+{"ts": 1774873702000, "event": "GitCommit", "sha": "f36300b4423e03b1a3cbd5102bedd9d404cf7796", "message": "fix: 도서산간 우편번호 데이터를 실제 엑셀 기반 정확한 데이터로 교체"}
+{"ts": 1774874336000, "event": "GitCommit", "sha": "77db0caa91cefd4bc4ad82d287fd216caf5a4209", "message": "fix: V41 마이그레이션 PostgreSQL 문법 오류 수정 (AUTO_INCREMENT → BIGSERIAL)"}
+{"ts": 1774972923000, "event": "GitCommit", "sha": "600860dbb9185e34fddfc1b4c6a51cf87220ca6f", "message": "feat: 배송정보 HTML 관리, 주소 분리, 결제 재시도 수정, 슬롯 정렬"}
+{"ts": 1774975955000, "event": "GitCommit", "sha": "da6759bb3e296c5f0e15f6794271634be9769afa", "message": "feat: 커스텀 상품 재고 관리 추가 + quantity null 허용"}
+{"ts": 1775006963000, "event": "GitCommit", "sha": "007042a0ff233888c20649db9dfc3da5d1e4d302", "message": "feat: 결제 웹훅 복구 + 주문/결제 프로세스 안정화"}
+{"ts": 1775008002000, "event": "GitCommit", "sha": "6e341f845146423a82605b034d71380909e0d400", "message": "feat: 관리자 CANCELLED 주문 삭제(soft delete) API 추가"}
+{"ts": 1775013663000, "event": "GitCommit", "sha": "4c95290f3fde611d8dfcc2b74194e2c62285644f", "message": "fix: 전체 날짜/시간 처리를 DateTimeUtil(KST) 기준으로 통일"}
+{"ts": 1775023643000, "event": "GitCommit", "sha": "311d22a4d880c9b6cfb356230c2ed89fd97e5933", "message": "feat: 다중 반려동물 동시 예약 지원"}
+{"ts": 1775023970000, "event": "GitCommit", "sha": "197fbdf65f219597568436189d99c113f724c751", "message": "fix: 타임슬롯 capacity를 유저 단위로 카운트하도록 변경"}
+{"ts": 1775030176000, "event": "GitCommit", "sha": "d53856ab2625d02ab262075f20dc9657502f6f8e", "message": "fix: 다중 반려동물 예약 시 결제 생성 오류 수정"}
+{"ts": 1775031986000, "event": "GitCommit", "sha": "6a5bfa0adc7e574930fd06e1e111e697076aedc2", "message": "fix: 다중 반려동물 예약 unique index 수정"}
+{"ts": 1775033896000, "event": "GitCommit", "sha": "8fa6fe75412850d4626124b5ae310db807084336", "message": "feat: 예약 PENDING 되돌리기 API + 처방 삭제/수정/검색 API 추가"}
+{"ts": 1775044660000, "event": "GitCommit", "sha": "7d475e1a214c8f2cac48cdb75e4306e277ca6a13", "message": "feat: 타임슬롯 인원 수정 API 추가 (PATCH /time-slots/{id}/capacity)"}
+{"ts": 1775045871000, "event": "GitCommit", "sha": "ec893a67cf2746e0fb796473b1173ec0b368b1cb", "message": "feat: 타임슬롯/스케줄 강제 삭제 + 연관 데이터 정리"}
+{"ts": 1775047274000, "event": "GitCommit", "sha": "b8690e934d2c90ba2ff27c03874f667136a233c2", "message": "fix: 타임슬롯 강제 삭제 시 FK 위반 수정"}
+{"ts": 1775047549000, "event": "GitCommit", "sha": "04ffc32532f5d1b79d610200310b4cf9089d48aa", "message": "fix: 타임슬롯 삭제 시 Appointment soft-delete + FK 해제 방식으로 변경"}
+{"ts": 1775047997000, "event": "GitCommit", "sha": "868bc502d0a36ac18aee2c0a8dbf73ed191cc4fe", "message": "fix: Flyway repair-on-migrate 활성화 (V48 체크섬 불일치 해결)"}
+{"ts": 1775048164000, "event": "GitCommit", "sha": "aa05df374226c837aef66a78670c39d365512273", "message": "fix: V48 원본 복원 + V49에서 CASCADE 제거 및 nullable 변경"}
+{"ts": 1775049885000, "event": "GitCommit", "sha": "b5d66a6aa95b6c1814d6f0fcc7cbd1428e14b409", "message": "fix: 커스텀 상품 재고수량 0 허용 + quantity null 허용"}
+{"ts": 1775050282000, "event": "GitCommit", "sha": "4fa19cc67c6f46b6d1a023b617b768f8431b774b", "message": "fix: 커스텀 상품 quantity(한 세트당 개수) DB NOT NULL 제거"}
+{"ts": 1775180942000, "event": "GitCommit", "sha": "0ca8bfe803511f60b69c9770213d995fbc1ba0cf", "message": "fix: 관리자 신청인 리스트 신청일(createdAt) 기준 최신순 정렬 적용"}
+{"ts": 1775193468000, "event": "GitCommit", "sha": "7078b88d66220919ae2ea09de5070d2222d608e0", "message": "fix: 승인된 처방 조회 시 petId 필터 추가 (다른 동물에 노출되는 버그 수정)"}
+{"ts": 1775194432000, "event": "GitCommit", "sha": "81c124ab635443dc431481bb8fd61d6f021f0efd", "message": "feat: 장바구니 커스텀 상품에 반려동물 이름(petName) 추가"}
+{"ts": 1775195972000, "event": "GitCommit", "sha": "0a71e684db73767f211555c9ff1dd95d8eb82465", "message": "feat: 장바구니 커스텀 상품명에 동물명 포함 + 처방 API 개선"}
+{"ts": 1775196568000, "event": "GitCommit", "sha": "65691e37b2e9310280081a11cde33b7f2346a0ef", "message": "fix: 처방 의약품 장바구니 추가 시 timeSlotId 설정"}
+{"ts": 1775459212000, "event": "GitCommit", "sha": "a9f7c2bbf791f7e1248e250c34f3951af0e5c7a1", "message": "feat: 회원 권한 일괄 설정 벌크 API 추가"}
+{"ts": 1775534648000, "event": "GitCommit", "sha": "c85c456b3339abdc5321ffea651bd391cd26abae", "message": "feat: 커스텀 상품 정가(basePrice) 필드 추가"}

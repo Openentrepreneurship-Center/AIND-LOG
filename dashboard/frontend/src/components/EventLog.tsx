@@ -22,7 +22,57 @@ function JsonViewer({ data }: { data: unknown }) {
   )
 }
 
+function GitCommitDetail({ ev }: { ev: EventItem }) {
+  const payload = ev.raw_payload as Record<string, unknown>
+  const changedFiles: string[] = (payload?.changed_files as string[]) ?? []
+  const totalFiles: number = (payload?.total_files_in_snapshot as number) ?? 0
+  const hasSnapshot: boolean = (payload?.has_snapshot as boolean) ?? false
+
+  return (
+    <div className="px-6 py-4 bg-gray-800/40 border-t border-gray-800 space-y-4">
+      {/* SHA + 메시지 */}
+      <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+        <div>
+          <p className="text-gray-500 text-xs font-medium mb-1">Git SHA</p>
+          <p className="text-pink-300 text-xs font-mono break-all">{ev.git_sha}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 text-xs font-medium mb-1">스냅샷</p>
+          <p className="text-xs font-mono">
+            {hasSnapshot
+              ? <span className="text-emerald-400">✓ 있음 (전체 {totalFiles}개 파일)</span>
+              : <span className="text-red-400">✗ 없음</span>}
+          </p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-gray-500 text-xs font-medium mb-1">커밋 메시지</p>
+          <p className="text-gray-200 text-xs font-mono whitespace-pre-wrap">{ev.git_message}</p>
+        </div>
+      </div>
+
+      {/* 변경 파일 목록 */}
+      {changedFiles.length > 0 && (
+        <div>
+          <p className="text-gray-500 text-xs font-medium mb-2">
+            변경된 파일 <span className="text-pink-400">{changedFiles.length}개</span>
+          </p>
+          <div className="bg-gray-950 rounded-lg p-3 max-h-56 overflow-auto space-y-1">
+            {changedFiles.map((f, i) => (
+              <p key={i} className="text-xs font-mono text-gray-300 flex items-start gap-2">
+                <span className="text-pink-500 shrink-0">▸</span>
+                <span className="break-all">{f}</span>
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DetailPanel({ ev }: { ev: EventItem }) {
+  if (ev.event === 'GitCommit') return <GitCommitDetail ev={ev} />
+
   const sections: { label: string; value: unknown; show: boolean }[] = [
     { label: '프롬프트', value: ev.prompt, show: !!ev.prompt },
     { label: '초기 요청', value: ev.initial_task, show: !!ev.initial_task },
@@ -56,10 +106,12 @@ function DetailPanel({ ev }: { ev: EventItem }) {
       </div>
 
       {/* 전체 payload JSON */}
-      <div>
-        <p className="text-gray-500 text-xs font-medium mb-1">전체 payload (raw JSON)</p>
-        <JsonViewer data={ev.raw_payload} />
-      </div>
+      {Object.keys(ev.raw_payload ?? {}).length > 0 && (
+        <div>
+          <p className="text-gray-500 text-xs font-medium mb-1">전체 payload (raw JSON)</p>
+          <JsonViewer data={ev.raw_payload} />
+        </div>
+      )}
     </div>
   )
 }

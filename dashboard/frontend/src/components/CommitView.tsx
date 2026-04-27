@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Commit } from '../types'
+import Modal from './Modal'
 
 // ── diff parser ────────────────────────────────────────────────────────────
 type DiffLine = { type: 'add' | 'del' | 'hunk' | 'meta' | 'ctx'; text: string }
@@ -117,7 +118,7 @@ function SnapshotViewer({ files }: { files: Commit['snapshot_files'] }) {
 // ── main component ─────────────────────────────────────────────────────────
 export default function CommitView() {
   const [commits, setCommits] = useState<Commit[]>([])
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [modalSha, setModalSha] = useState<string | null>(null)
   const [tab, setTab] = useState<Record<string, 'diff' | 'snapshot'>>({})
   const [loading, setLoading] = useState(true)
 
@@ -137,6 +138,7 @@ export default function CommitView() {
   const getTab = (sha: string) => tab[sha] ?? 'diff'
   const setTabFor = (sha: string, t: 'diff' | 'snapshot') =>
     setTab(prev => ({ ...prev, [sha]: t }))
+  const modalCommit = commits.find(c => c.sha === modalSha) ?? null
 
   if (loading) return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center text-gray-500 text-sm">
@@ -151,26 +153,25 @@ export default function CommitView() {
   )
 
   return (
+    <>
     <div className="bg-gray-900 rounded-xl border border-gray-800">
       <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
         <h2 className="font-semibold text-white text-sm">커밋 이력</h2>
-        <span className="text-gray-500 text-xs">{commits.length}건 · diff + 전체 스냅샷</span>
+        <span className="text-gray-500 text-xs">{commits.length}건 · 클릭해서 상세 보기</span>
       </div>
 
       <div className="divide-y divide-gray-800">
         {commits.map(c => {
-          const isOpen = expanded === c.sha
           const currentTab = getTab(c.sha)
           const firstLine = c.message.split('\n')[0]
+          void currentTab
 
           return (
             <div key={c.sha}>
               {/* 커밋 행 */}
               <div
-                onClick={() => setExpanded(isOpen ? null : c.sha)}
-                className={`px-5 py-3 cursor-pointer transition-colors flex items-start gap-4 ${
-                  isOpen ? 'bg-gray-800/50' : 'hover:bg-gray-800/30'
-                }`}
+                onClick={() => setModalSha(c.sha)}
+                className="px-5 py-3 cursor-pointer transition-colors flex items-start gap-4 hover:bg-gray-800/40 active:bg-gray-800/60"
               >
                 {/* sha */}
                 <span className="text-xs font-mono text-gray-500 whitespace-nowrap pt-0.5 w-16 flex-shrink-0">
@@ -197,80 +198,85 @@ export default function CommitView() {
                   )}
                 </div>
 
-                {/* 스냅샷 유무 */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                {/* 배지 */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                   {c.has_patch && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      diff
-                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">diff</span>
                   )}
                   {c.has_snapshot && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">
-                      snapshot
-                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">snap</span>
                   )}
-                  <span className="text-gray-600 text-xs">{isOpen ? '▲' : '▼'}</span>
+                  <span className="text-gray-600 text-xs">›</span>
                 </div>
               </div>
-
-              {/* 상세 패널 */}
-              {isOpen && (
-                <div className="px-5 py-4 bg-gray-800/30 border-t border-gray-800 space-y-4">
-                  {/* 메타 */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                    <div>
-                      <p className="text-gray-500 font-medium mb-0.5">SHA</p>
-                      <p className="text-gray-300 font-mono">{c.sha}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-medium mb-0.5">시각 (KST)</p>
-                      <p className="text-gray-300">{c.ts_kst || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-medium mb-0.5">연관 Task ID</p>
-                      <p className="text-gray-300 font-mono">{c.task_id || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-medium mb-0.5">변경 파일</p>
-                      <p className="text-gray-300">{c.changed_files.join(', ') || '-'}</p>
-                    </div>
-                    {c.message.includes('\n') && (
-                      <div className="col-span-2 lg:col-span-4">
-                        <p className="text-gray-500 font-medium mb-0.5">커밋 메시지 전체</p>
-                        <pre className="text-gray-300 text-xs whitespace-pre-wrap font-mono bg-gray-950 p-3 rounded-lg">
-                          {c.message}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* diff / snapshot 탭 */}
-                  <div>
-                    <div className="flex gap-2 mb-3">
-                      {(['diff', 'snapshot'] as const).map(t => (
-                        <button
-                          key={t}
-                          onClick={e => { e.stopPropagation(); setTabFor(c.sha, t) }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                            currentTab === t
-                              ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                              : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-500'
-                          }`}
-                        >
-                          {t === 'diff' ? `변경분 (diff)` : `전체 스냅샷 (${c.snapshot_files.length}개 파일)`}
-                        </button>
-                      ))}
-                    </div>
-
-                    {currentTab === 'diff' && <DiffViewer patch={c.patch_content} />}
-                    {currentTab === 'snapshot' && <SnapshotViewer files={c.snapshot_files} />}
-                  </div>
-                </div>
-              )}
             </div>
           )
         })}
       </div>
     </div>
+
+    {/* 커밋 상세 모달 */}
+    <Modal
+      open={modalCommit !== null}
+      onClose={() => setModalSha(null)}
+      title={`커밋 · ${modalCommit?.sha_short ?? ''} — ${(modalCommit?.message.split('\n')[0] ?? '').slice(0,50)}`}
+      width="2xl"
+    >
+      {modalCommit && (() => {
+        const c = modalCommit
+        const curTab = getTab(c.sha)
+        return (
+          <div className="space-y-4">
+            {/* 메타 */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-gray-800/50 rounded-lg px-3 py-2">
+                <p className="text-gray-500 mb-0.5">SHA</p>
+                <p className="font-mono text-gray-300 break-all">{c.sha}</p>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg px-3 py-2">
+                <p className="text-gray-500 mb-0.5">시각 (KST)</p>
+                <p className="text-gray-300">{c.ts_kst || '-'}</p>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg px-3 py-2">
+                <p className="text-gray-500 mb-0.5">연관 Task</p>
+                <p className="font-mono text-gray-300">{c.task_id || '-'}</p>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg px-3 py-2">
+                <p className="text-gray-500 mb-0.5">변경 파일 {c.changed_files.length}개</p>
+                <p className="text-gray-400 text-xs truncate">{c.changed_files.join(', ') || '-'}</p>
+              </div>
+            </div>
+
+            {c.message.includes('\n') && (
+              <div>
+                <p className="text-xs text-gray-500 mb-1">커밋 메시지 전체</p>
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono bg-gray-950 p-3 rounded-lg border border-gray-800">
+                  {c.message}
+                </pre>
+              </div>
+            )}
+
+            {/* diff / snapshot 탭 */}
+            <div>
+              <div className="flex gap-2 mb-3">
+                {(['diff', 'snapshot'] as const).map(t => (
+                  <button key={t} onClick={() => setTabFor(c.sha, t)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                      curTab === t
+                        ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                        : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-500'
+                    }`}>
+                    {t === 'diff' ? '변경분 (diff)' : `전체 스냅샷 (${c.snapshot_files.length}개 파일)`}
+                  </button>
+                ))}
+              </div>
+              {curTab === 'diff' && <DiffViewer patch={c.patch_content} />}
+              {curTab === 'snapshot' && <SnapshotViewer files={c.snapshot_files} />}
+            </div>
+          </div>
+        )
+      })()}
+    </Modal>
+    </>
   )
 }

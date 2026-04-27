@@ -125,28 +125,24 @@ export default function SimilarityView({ file }: Props) {
     }))
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-5">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
       {/* 헤더 */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-violet-400" />
-            커밋별 코드 유사도 분석
-            <span className="text-xs font-normal text-gray-500 ml-1">AIND_SIMILARITY 적응</span>
+            유사도 추이 차트
+            {results.length > 0 && (
+              <span className="text-xs font-normal text-gray-500">{results.filter(r=>r.prev_sha!=='').length}개 비교점</span>
+            )}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            연속된 두 커밋 간 코드 변화를 L1~L4 레이어로 측정합니다.
-            낮은 유사도 = 큰 코드 변경
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">낮을수록 큰 변경 · 1.0 = 완전 동일</p>
         </div>
         {/* 레이어 범례 */}
-        <div className="flex flex-wrap gap-3 shrink-0">
+        <div className="flex gap-3 shrink-0">
           {(['L1','L2','L3','L4'] as const).map(layer => (
             <div key={layer} className="flex items-center gap-1.5">
-              <span
-                className="w-3 h-0.5 rounded-full inline-block"
-                style={{ background: LAYER_COLORS[layer] }}
-              />
+              <span className="w-3 h-0.5 rounded-full inline-block" style={{ background: LAYER_COLORS[layer] }} />
               <span className="text-xs text-gray-400">{layer}</span>
             </div>
           ))}
@@ -168,33 +164,9 @@ export default function SimilarityView({ file }: Props) {
 
       {!loading && !error && results.length > 0 && (
         <>
-          {/* 레이어 설명 카드 */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {(['L1','L2','L3','L4'] as const).map(layer => (
-              <div
-                key={layer}
-                className="rounded-lg border border-gray-800 bg-gray-950/50 px-3 py-2"
-              >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: LAYER_COLORS[layer] }}
-                  />
-                  <span className="text-xs font-semibold" style={{ color: LAYER_COLORS[layer] }}>
-                    {LAYER_LABELS[layer]}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 leading-tight">{LAYER_DESC[layer]}</p>
-              </div>
-            ))}
-          </div>
-
           {/* 라인 차트 */}
           {chartData.length > 0 ? (
             <div className="bg-gray-950/50 rounded-lg p-4 border border-gray-800">
-              <p className="text-xs text-gray-500 mb-3">
-                커밋 간 유사도 추이 (이전 커밋 → 현재 커밋, 1.0 = 동일)
-              </p>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={chartData} margin={{ top: 4, right: 16, left: -10, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -213,157 +185,102 @@ export default function SimilarityView({ file }: Props) {
                   />
                   <ReferenceLine y={1} stroke="#374151" strokeDasharray="4 2" />
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend
-                    formatter={(value) => (
-                      <span style={{ color: '#9ca3af', fontSize: 11 }}>
-                        {LAYER_LABELS[value as keyof typeof LAYER_LABELS] ?? value}
-                      </span>
-                    )}
-                  />
+                  <Legend formatter={(value) => (
+                    <span style={{ color: '#9ca3af', fontSize: 11 }}>
+                      {LAYER_LABELS[value as keyof typeof LAYER_LABELS] ?? value}
+                    </span>
+                  )} />
                   {(['L1','L2','L3','L4'] as const).map(layer => (
-                    <Line
-                      key={layer}
-                      type="monotone"
-                      dataKey={layer}
-                      stroke={LAYER_COLORS[layer]}
-                      strokeWidth={2}
-                      dot={{ r: 4, fill: LAYER_COLORS[layer], strokeWidth: 0 }}
-                      activeDot={{ r: 6 }}
+                    <Line key={layer} type="monotone" dataKey={layer}
+                      stroke={LAYER_COLORS[layer]} strokeWidth={2}
+                      dot={{ r: 3, fill: LAYER_COLORS[layer], strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
                     />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-xs text-gray-500 text-center py-6">
-              비교 가능한 커밋 쌍이 없습니다 (커밋이 2개 이상 필요합니다).
-            </p>
+            <p className="text-xs text-gray-500 text-center py-6">비교 가능한 커밋 쌍이 없습니다.</p>
           )}
 
-          {/* 커밋별 상세 테이블 */}
-          <div className="overflow-x-auto rounded-lg border border-gray-800">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-800/60 border-b border-gray-700">
-                  <th className="text-left px-3 py-2.5 text-gray-400 font-medium w-20">커밋</th>
-                  <th className="text-left px-3 py-2.5 text-gray-400 font-medium">메시지</th>
-                  <th className="text-left px-3 py-2.5 text-gray-400 font-medium w-36">시각 (KST)</th>
-                  <th className="text-center px-3 py-2.5 text-gray-400 font-medium w-16">변경</th>
-                  <th className="text-center px-3 py-2.5 text-gray-400 font-medium w-20">크기변화</th>
-                  <th className="text-center px-3 py-2.5 font-semibold w-20"
-                    style={{ color: LAYER_COLORS.L1 }}>L1</th>
-                  <th className="text-center px-3 py-2.5 font-semibold w-20"
-                    style={{ color: LAYER_COLORS.L2 }}>L2</th>
-                  <th className="text-center px-3 py-2.5 font-semibold w-20"
-                    style={{ color: LAYER_COLORS.L3 }}>L3</th>
-                  <th className="text-center px-3 py-2.5 font-semibold w-20"
-                    style={{ color: LAYER_COLORS.L4 }}>L4</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => {
-                  const isFirst = r.prev_sha === ''
-                  const isOpen = selectedRow === i
-                  return (
-                    <>
-                      <tr
-                        key={r.sha}
-                        className={`border-b border-gray-800/60 cursor-pointer transition-colors
-                          ${isOpen ? 'bg-gray-800/40' : 'hover:bg-gray-800/20'}`}
-                        onClick={() => setSelectedRow(isOpen ? null : i)}
-                      >
-                        <td className="px-3 py-2.5">
-                          <span className="font-mono text-blue-400">{r.sha_short}</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-300 max-w-xs truncate">
-                          {r.message}
-                        </td>
-                        <td className="px-3 py-2.5 text-gray-500">{r.ts_kst}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          {r.changed
-                            ? <span className="text-amber-400">●</span>
-                            : <span className="text-gray-700">–</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <SizeChange oldSize={r.old_size} newSize={r.new_size} />
-                        </td>
-                        {isFirst ? (
-                          <td colSpan={4} className="px-3 py-2.5 text-center text-gray-600 text-xs">
-                            최초 커밋 (비교 대상 없음)
+          {/* 커밋별 테이블 (접기 가능) */}
+          <details className="rounded-lg border border-gray-800">
+            <summary className="text-xs text-gray-500 font-medium px-4 py-2.5 cursor-pointer select-none hover:text-gray-400 bg-gray-800/30 rounded-lg">
+              커밋별 상세 수치 테이블 ({results.length}개)
+            </summary>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-800/60 border-b border-gray-700">
+                    <th className="text-left px-3 py-2 text-gray-400 font-medium w-20">커밋</th>
+                    <th className="text-left px-3 py-2 text-gray-400 font-medium">메시지</th>
+                    <th className="text-center px-3 py-2 text-gray-400 font-medium w-16">변경</th>
+                    <th className="text-center px-3 py-2 font-semibold w-16" style={{ color: LAYER_COLORS.L1 }}>L1</th>
+                    <th className="text-center px-3 py-2 font-semibold w-16" style={{ color: LAYER_COLORS.L2 }}>L2</th>
+                    <th className="text-center px-3 py-2 font-semibold w-16" style={{ color: LAYER_COLORS.L3 }}>L3</th>
+                    <th className="text-center px-3 py-2 font-semibold w-16" style={{ color: LAYER_COLORS.L4 }}>L4</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => {
+                    const isFirst = r.prev_sha === ''
+                    const isOpen = selectedRow === i
+                    return (
+                      <>
+                        <tr
+                          key={r.sha}
+                          className={`border-b border-gray-800/60 cursor-pointer transition-colors
+                            ${isOpen ? 'bg-gray-800/40' : 'hover:bg-gray-800/20'}`}
+                          onClick={() => setSelectedRow(isOpen ? null : i)}
+                        >
+                          <td className="px-3 py-2"><span className="font-mono text-blue-400">{r.sha_short}</span></td>
+                          <td className="px-3 py-2 text-gray-300 max-w-xs truncate">{r.message}</td>
+                          <td className="px-3 py-2 text-center">
+                            {r.changed ? <span className="text-amber-400">●</span> : <span className="text-gray-700">–</span>}
                           </td>
-                        ) : (
-                          (['L1','L2','L3','L4'] as const).map(layer => (
-                            <td key={layer} className="px-3 py-2.5 text-center">
-                              <ScoreBadge value={r.scores[layer]} />
-                            </td>
-                          ))
-                        )}
-                      </tr>
-
-                      {/* 펼침 상세 패널 */}
-                      {isOpen && !isFirst && (
-                        <tr key={`${r.sha}-detail`} className="bg-gray-950/70">
-                          <td colSpan={9} className="px-4 py-3">
-                            <div className="space-y-3">
-                              <p className="text-xs text-gray-500">
-                                <span className="text-gray-400 font-medium">비교:</span>{' '}
-                                <span className="font-mono text-blue-500">{r.prev_sha_short}</span>
-                                <span className="mx-2 text-gray-700">→</span>
-                                <span className="font-mono text-blue-400">{r.sha_short}</span>
-                                <span className="ml-3">
-                                  파일: <span className="text-gray-300">{r.file}</span>
-                                </span>
-                              </p>
+                          {isFirst ? (
+                            <td colSpan={4} className="px-3 py-2 text-center text-gray-600">최초 커밋</td>
+                          ) : (
+                            (['L1','L2','L3','L4'] as const).map(layer => (
+                              <td key={layer} className="px-3 py-2 text-center">
+                                <ScoreBadge value={r.scores[layer]} />
+                              </td>
+                            ))
+                          )}
+                        </tr>
+                        {isOpen && !isFirst && (
+                          <tr key={`${r.sha}-d`} className="bg-gray-950/70">
+                            <td colSpan={7} className="px-4 py-3">
                               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                                 {(['L1','L2','L3','L4'] as const).map(layer => (
-                                  <div
-                                    key={layer}
-                                    className="rounded-lg border p-2.5"
-                                    style={{
-                                      borderColor: LAYER_COLORS[layer] + '33',
-                                      background: LAYER_COLORS[layer] + '08',
-                                    }}
-                                  >
+                                  <div key={layer} className="rounded-lg border p-2"
+                                    style={{ borderColor: LAYER_COLORS[layer]+'33', background: LAYER_COLORS[layer]+'08' }}>
                                     <div className="flex items-center justify-between mb-1">
-                                      <span
-                                        className="text-xs font-semibold"
-                                        style={{ color: LAYER_COLORS[layer] }}
-                                      >
+                                      <span className="text-xs font-semibold" style={{ color: LAYER_COLORS[layer] }}>
                                         {LAYER_LABELS[layer]}
                                       </span>
-                                      <span
-                                        className="text-sm font-bold font-mono"
-                                        style={{ color: LAYER_COLORS[layer] }}
-                                      >
-                                        {(r.scores[layer] * 100).toFixed(1)}%
+                                      <span className="text-sm font-bold font-mono" style={{ color: LAYER_COLORS[layer] }}>
+                                        {(r.scores[layer]*100).toFixed(1)}%
                                       </span>
                                     </div>
-                                    {/* 바 */}
                                     <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full transition-all"
-                                        style={{
-                                          width: `${r.scores[layer] * 100}%`,
-                                          background: LAYER_COLORS[layer],
-                                        }}
-                                      />
+                                      <div className="h-full rounded-full" style={{ width: `${r.scores[layer]*100}%`, background: LAYER_COLORS[layer] }} />
                                     </div>
-                                    <p className="text-xs text-gray-600 mt-1.5 leading-tight">
-                                      {LAYER_DESC[layer]}
-                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1 leading-tight">{LAYER_DESC[layer]}</p>
                                   </div>
                                 ))}
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </>
       )}
 
@@ -374,9 +291,7 @@ export default function SimilarityView({ file }: Props) {
       )}
 
       {!loading && !error && !file && (
-        <p className="text-gray-500 text-sm text-center py-8">
-          위쪽 트리에서 분석할 파일을 선택해주세요.
-        </p>
+        <p className="text-gray-500 text-sm text-center py-8">파일을 선택해주세요.</p>
       )}
     </div>
   )
