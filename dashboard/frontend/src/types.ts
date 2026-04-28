@@ -1,5 +1,7 @@
 export interface Summary {
   total_events: number
+  total_hook_events: number
+  total_git_events: number
   total_tasks: number
   total_resumes: number
   rework_rate: number

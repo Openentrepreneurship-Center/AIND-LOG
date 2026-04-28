@@ -68,11 +68,20 @@ export default function SummaryCards({ summary: s }: Props) {
       {/* 지표 카드 행 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <MetricCard
-          label="총 이벤트"
-          value={s.total_events.toLocaleString()}
-          sub="누적 이벤트 수"
+          label="Hook 이벤트"
+          value={s.total_hook_events.toLocaleString()}
+          sub="cline 훅 (Task/Tool/Prompt)"
           color="border-blue-500/40"
           badge="bg-blue-500/10 text-blue-400"
+          tooltip="TaskStart/Complete/Cancel/Resume, Pre/PostToolUse, UserPromptSubmit, PreCompact 합계"
+        />
+        <MetricCard
+          label="GitCommit"
+          value={s.total_git_events.toLocaleString()}
+          sub="git 커밋 추적 이벤트"
+          color="border-pink-500/40"
+          badge="bg-pink-500/10 text-pink-400"
+          tooltip="백필된 과거 commit + AIND-LOG post-commit hook 이 기록한 새 commit"
         />
         <MetricCard
           label="총 Task"

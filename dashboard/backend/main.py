@@ -54,6 +54,8 @@ CODE_TOOLS = {"write_to_file", "replace_in_file", "new_file", "apply_diff"}
 class SummaryModel(BaseModel):
     """전체 집계 요약 지표."""
     total_events: int = Field(..., description="events.jsonl 에 기록된 전체 이벤트 수")
+    total_hook_events: int = Field(..., description="cline 훅 이벤트 수 (TaskStart/Complete/Cancel/Resume, Pre/PostToolUse, UserPromptSubmit, PreCompact)")
+    total_git_events: int = Field(..., description="GitCommit 이벤트 수 (백필 + post-commit hook)")
     total_tasks: int = Field(..., description="TaskStart 이벤트 기준 총 작업 수")
     total_resumes: int = Field(..., description="TaskResume 이벤트가 발생한 작업 수")
     rework_rate: float = Field(..., description="재업무율(%) = total_resumes / total_tasks × 100")
@@ -550,6 +552,8 @@ def process(events: list[dict]) -> dict:
     return {
         "summary": {
             "total_events": len(events),
+            "total_git_events": sum(1 for e in events if e.get("event") == "GitCommit"),
+            "total_hook_events": sum(1 for e in events if e.get("event") and e.get("event") != "GitCommit"),
             "total_tasks": total_starts,
             "total_resumes": total_resumes,
             "rework_rate": round(total_resumes / total_starts * 100, 1) if total_starts else 0,

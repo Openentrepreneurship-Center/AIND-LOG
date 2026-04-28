@@ -49,8 +49,8 @@ export default function TaskTable({ tasks }: Props) {
                 >
                   <td className="px-4 py-2.5 text-gray-300 whitespace-nowrap">{t.start_kst}</td>
                   <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap">{t.end_kst || '-'}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[t.status] ?? ''}`}>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_STYLE[t.status] ?? ''}`}>
                       {t.status}
                     </span>
                   </td>
