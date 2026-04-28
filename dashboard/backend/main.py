@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field
 
 # ── paths ──────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent.parent / ".cline-metrics"
-# EVENTS_FILE 환경변수로 다른 events 파일 지정 가능 (예: events_decapet.jsonl)
-_events_filename = os.environ.get("EVENTS_FILE", "events_decapet.jsonl")
+# EVENTS_FILE 환경변수로 다른 events 파일 override 가능 (기본은 events.jsonl)
+_events_filename = os.environ.get("EVENTS_FILE", "events.jsonl")
 EVENTS_PATH = ROOT / _events_filename
 FINAL_DIR = ROOT / "final"
 
