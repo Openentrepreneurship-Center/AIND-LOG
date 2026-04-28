@@ -1,6 +1,7 @@
 package com.backend.domain.user.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.backend.global.common.constants.ValidationConstants;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
@@ -8,7 +9,7 @@ import jakarta.validation.constraints.Pattern;
 public record PhoneVerifyRequest(
         @Schema(description = "새 전화번호 (010으로 시작하는 11자리)", example = "01012345678")
         @NotBlank(message = "전화번호를 입력해주세요.")
-        @Pattern(regexp = "^010\\d{8}$", message = "전화번호 형식이 올바르지 않습니다. (010XXXXXXXX)")
+        @Pattern(regexp = ValidationConstants.PHONE_REGEX, message = ValidationConstants.PHONE_MESSAGE)
         String phone,
 
         @Schema(description = "인증번호 (6자리)", example = "123456")
