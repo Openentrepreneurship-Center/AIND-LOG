@@ -1,120 +1,188 @@
-#naming_rule.md
-## 0. 개요
-- 입력 기준: `feature.name` (한글 기능명) 
-- 출력 대상: Controller, Service, DTO, URI
-- 핵심 원칙
-  - `feature.name`에서 `동사(Feature) + 나머지(명사구)` 형태로 파악한다.
-  - 주동사는 표준 Feature 세트에서 변환하고, 이후 단어 각각 순서 그대로 명사구 1:1 변환한다.
-  - `feature.name`의 각 모든 한글 단어를 표준 영문 용어와 1:1로 매핑하여 영어 명칭을 생성한다.
-  - Controller, Service, DTO, URI 에서 동일하게 사용한다.
-  - 엔티티명은 테이블명 기준으로 약어를 해석하지 않고 그대로 변환 규칙을 사용한다.
+# naming_rule.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
-## 1. 변환 규칙
-| 단계 | 규칙 | 예시 |
-| --- | --- | --- |
-| 0. 한글 단어 추출 | 한글 기능명의 각 한글 단어 단위로 분리한다. | `약관동의정보조회` → `약관`, `동의`, `정보`, `조회` |
-| 1. 동사(Feature) 추출 | 기능명(주동사)를 Feature 세트에서 1:1 매핑 | “조회” → Retrieve |
-| 2. 나머지 단어 변환 | 나머지 단어는 표준 단어 매핑 세트에서 각각 모두 순서 유지하며 1:1 명사구 영단어 매핑 | `약관`, `동의`, `정보` → TermsAgreeInfo (순서유
-| 3. 결합 | `{Feature}{나머지명사구}` 형태로 결합 | RetrieveTermsAgreeInfo |
-| 4. 활용 | 생성된 명칭은 Controller, Service, DTO, URI 계층에 동일하게 사용 | `RetrieveTermsAgreeInfoResDto`, `retrieveTermsAgreeInfo()`, `/retrieve-terms-agree-info` |
+---
 
+## 1. 개요
 
-## 2. Feature 표준 세트
-| 한글 동사 | Feature | HTTP |
-| --- | --- | --- |
-| 조회 | Retrieve | GET |
-| 등록/생성/발행 | Register | POST |
-| 수정 | Update | PUT |
-| 삭제 | Delete | DELETE |
-| 검색 | Search | GET |
-| 활성화 | Activate | PUT |
-| 비활성화 | Deactivate | PUT |
-| 검증 | Verify | POST |
-| 결과/요약/통계 조회 | Retrieve | GET |
+이 문서는 `com.backend` 패키지 전체에 걸쳐 적용되는 이름 부여 규칙을 정의한다.
+클래스, 메서드, 변수, 패키지, URL 엔드포인트 모든 계층에서 일관된 명명 규칙을 따름으로써
+코드 탐색 비용을 낮추고 자동화 도구(코드 생성, 검색)의 정확도를 높인다.
+아래 규칙은 신규 코드 작성 및 기존 코드 수정 모두에 적용된다.
 
-> `및`으로 연결된 동사는 생략하고 대표 의미 하나로 표현(주동사)
-> 예) `생성및저장` → `register`
+---
 
+## 2. 기본 케이스 규칙 (must)
 
+| 대상 | 케이스 | 예시 |
+|------|--------|------|
+| 클래스 · 인터페이스 · Enum · record | PascalCase | `UserService`, `PhoneVerifyRequest`, `ErrorCode` |
+| 메서드 · 변수 · 파라미터 | camelCase | `getUser()`, `userId`, `verificationCode` |
+| 상수 (`static final`) | UPPER_SNAKE_CASE | `VERIFICATION_TTL_MINUTES`, `PHONE_REGEX` |
+| 패키지 | 소문자 단어 연속, 언더스코어 금지 | `com.backend.domain.user.controller` |
+| URL 경로 세그먼트 | kebab-case (소문자 + 하이픈) | `/api/v1/users`, `/me/phone/sms/send` |
 
+---
 
-## 3. 표준 단어 매핑 세트
-| 한글 단어 | 영문 변환 |
-| --- | --- |
-| 회원 / 사용자 | Member / User |
-| 계정 | Account |
-| 카드 | Card |
-| OTP | Otp |
-| 결과 | Result |
-| 요약 | Summary |
-| 통계 | Statistics |
-| 약관 | Terms |
-| 동의 | Agree |
-| 정보 | Info |
-| 내역 | History |
-| 서비스체크 | ServiceCheck |
-| 2단계 인증 | TwoFactorAuth |
+## 3. 클래스 Suffix 규약 (must)
 
-> 제시된 표에 없는 단어는 동일한 의미의 영어 단어로 매핑한다.
+| 역할 | Suffix | 예시 |
+|------|--------|------|
+| REST 컨트롤러 | `Controller` | `UserController`, `AdminUserController` |
+| Swagger 명세 인터페이스 | `Api` | `UserApi`, `AdminUserApi` |
+| 서비스 | `Service` | `UserService`, `SmsService` |
+| JPA Repository | `Repository` | `UserRepository`, `VerificationRepository` |
+| Entity ↔ DTO 변환기 | `Mapper` | `UserMapper`, `UserResponseMapper` |
+| 비즈니스 예외 | `Exception` | `UserNotFoundException`, `DuplicateEmailException` |
+| JPA Entity | (단순 명사, suffix 없음) | `User`, `Pet`, `Verification` |
+| 설정 클래스 | `Config` | `SecurityConfig`, `JpaConfig`, `RateLimitConfig` |
+| 필터 | `Filter` | `JwtFilter`, `RateLimitFilter`, `AccountValidationFilter` |
+| 이벤트 | `Event` | `UserDeletedEvent` |
+| 이벤트 리스너 | `EventListener` | `UserDeletionEventListener` |
 
-> 각 한글 단어 모두 제시된 순서대로 명사구 1:1로 대응한다.
+---
 
+## 4. URL 패턴 (must)
 
-## 4. 계층별 규칙
-### 4.1 Controller
-| 항목 | 규칙 |
-| --- | --- |
-| 패키지 | `com.poc.backend.domain.{level1-domain}.controller` |
-| 클래스명 | `{level2-domain}Controller.java` |
-| 메서드명 | `{featureLower}{명사구}()` |
-| 예시 | `retrieveMemberInfo()`, `verifyOTP()` |
-
-### 4.2 Mapper / Entity
-> 테이블명 변환 규칙
-> * `TB_` 접두 제거
-> * 도메인 약어(`_AC`, `_CS`, …) 제거
-> * `_M`, `_H`, `_D` 접미 제거
-> * 약어는 해석하지 않고 그대로 PascalCase 변환
-
-#### Mapper
-| 항목 | 규칙 |
-| --- | --- |
-| 패키지 | `com.poc.backend.domain.{level1-domain}.mapper` |
-| XML 경로 | `src/main/resources/mybatis/mapper/{level1-domain}/` |
-| XML 파일명 | `{Table명_변환}Mapper.xml` |
-| 인터페이스명 | `{Table명_변환}Mapper.java` |
-| 예시 | `TB_CS_AUTN_M` → `AutnMapper.xml`, `AutnMapper.java` |
-
-#### Entity
-| 항목 | 규칙 |
-| --- | --- |
-| 패키지  | `com.poc.backend.domain.{level1-domain}.entity` |
-| 클래스명 | `{Table명_변환}Entity.java` |
-| 예시   | `TB_CS_AUTN_M` → `AutnEntity.java` |
-
-### 4.3 DTO
-| 항목 | 규칙 |
-| --- | --- |
-| 패키지 | Request: `com.poc.backend.domain.{level1-domain}.dto.request`<br>Response: `com.poc.backend.domain.{level1-domain}.dto.response` |
-| 클래스명 | `{Feature}{명사구}{Req or Res}Dto.java` |
-| Wrapper Class 예외 | Wrapper Class (Integer, Long, String 등)일 경우 DTO 없음, 그대로 사용 |
-
-
-## 5. Endpoint URI 규칙
-### 패턴
+### 4.1 기본 구조
 ```
-/api/v1/{level1-domain}/{level2-domain(kebab-case)}/{feature}-{명사구}
+/api/v1/{domain}/{sub-resource}
 ```
-- 소문자 + 하이픈(kebab-case) 로 변환
-- 예시: `account-management/retrieve-member-info`, `/verify-otp`, `/register-card`
 
+- `{domain}`: 도메인 복수 명사, kebab-case (`users`, `medicine-carts`, `custom-products`)
+- `{sub-resource}`: 추가 자원 경로, kebab-case
 
-## 6. 형식 일관성 원칙
-| 항목 | 규칙 |
-| --- | --- |
-| 클래스/파일명 | PascalCase (맨 앞 대문자) |
-| 메서드명 | camelCase (맨 앞 소문자) |
-| URI | kebab-case (소문자-하이픈) |
-| 명사구 | 각 한글 단어 순서 그대로 명사구 1:1로 매핑 |
-| 명칭 일관성 | Controller, Service, DTO, URI 동일 명칭 적용 |
-| 테이블명 → 엔티티명 변환 규칙 | `TB_` 접두 제거 + 도메인 약어(예: `_AC` 등) 제거 + `_M/_H` 접미 제거 후 테이블명 약어를 풀지않고 그대로 PascalCase |
+### 4.2 RESTful 동사 매트릭스
+
+| 동작 | HTTP 메서드 | URL 예시 |
+|------|-------------|----------|
+| 단건 조회 | GET | `/api/v1/users/me` |
+| 목록 조회 | GET | `/api/v1/users` |
+| 생성 | POST | `/api/v1/pets` |
+| 수정 (부분) | PATCH | `/api/v1/users/me` |
+| 수정 (전체) | PUT | `/api/v1/users/me` |
+| 삭제 | DELETE | `/api/v1/users/me` |
+| 액션 (동사) | POST | `/api/v1/users/me/phone/sms/send`, `/api/v1/users/me/phone/verify` |
+
+- URL에 동사를 사용하는 경우는 상태 변환·액션에만 한정하며, 계층 구조로 표현 불가능한 경우에만 허용한다.
+- 실제 코드 예:
+
+```java
+// decapet-official/backend/src/main/java/com/backend/domain/user/controller/UserController.java:28,61,70
+@RequestMapping("/api/v1/users")
+// ...
+@PostMapping("/me/phone/sms/send")
+// ...
+@PostMapping("/me/phone/verify")
+```
+
+---
+
+## 5. DTO 이름 규칙 (must)
+
+### 5.1 형식
+```
+{Action}{Entity}{Request|Response}
+```
+
+| 요소 | 설명 | 예시 |
+|------|------|------|
+| `{Action}` | 동작 의미 동사 (PascalCase) | `Update`, `Change`, `Phone`, `BulkUpdate` |
+| `{Entity}` | 대상 도메인 엔티티 | `Profile`, `Password`, `Phone`, `User` |
+| `{Request}` | 입력 DTO | `UpdateProfileRequest`, `ChangePasswordRequest` |
+| `{Response}` | 출력 DTO | `UserResponse`, `AdminUserListResponse` |
+
+### 5.2 내부 변환용 DTO
+- 계층 간 내부 전달 객체는 `{명사}Info` 형식을 사용한다.
+- 패키지: `com.backend.domain.{x}.dto.internal`
+- 예: `ProfileUpdateInfo`, `VerificationCreateInfo`
+
+### 5.3 DTO는 Java record (must)
+- 모든 요청·응답 DTO는 `record`로 선언한다.
+- 내부 변환용 DTO(`*Info`)도 `record`를 원칙으로 한다.
+
+```java
+// decapet-official/backend/src/main/java/com/backend/domain/user/dto/request/PhoneVerifyRequest.java:9
+public record PhoneVerifyRequest(
+        String phone,
+        String code
+) {}
+```
+
+---
+
+## 6. Entity 이름 규칙 (must)
+
+- Entity 클래스명은 단순 명사 형태로, suffix를 붙이지 않는다.
+- 테이블명은 스네이크케이스 복수 명사로 JPA `@Table`에서 지정한다.
+- Enum 타입은 `{명사}Type` 또는 의미를 나타내는 단순 명사 형태를 사용한다.
+
+| 클래스 | 설명 |
+|--------|------|
+| `User` | 사용자 엔티티 |
+| `Pet` | 반려동물 엔티티 |
+| `PermissionType` | 권한 유형 Enum |
+
+---
+
+## 7. 서비스 메서드 이름 규칙 (should)
+
+| 패턴 | 의미 | 예시 |
+|------|------|------|
+| `get{Entity}` | 단건 조회 (없으면 예외) | `getUser()` |
+| `list{Entity}` | 목록 조회 | `listUsers()` |
+| `create{Entity}` | 생성 | `createPet()` |
+| `update{Entity}` | 수정 | `updateProfile()` |
+| `delete{Entity}` | 삭제 | `deleteUser()` |
+| `send{명사}` | 발송 | `sendPhoneChangeSms()` |
+| `verify{명사}` | 검증 | `verifyPhoneChange()` |
+| `change{명사}` | 변경 | `changePassword()` |
+| `validate{명사}` | 유효성 확인 (예외 발생형) | `validateEmailNotDuplicate()` |
+
+---
+
+## 8. Repository 메서드 이름 규칙 (must)
+
+- Spring Data JPA 파생 쿼리는 `findBy{조건}` 패턴을 따른다.
+- 조회 결과가 없으면 예외를 던지는 래퍼 메서드는 `getBy{조건}` 접두사를 사용한다.
+- soft-delete 대상은 조건에 `AndDeletedAtIsNull`을 반드시 포함한다.
+- 유효성 검증 메서드는 `validate{명사}` 접두사를 사용한다.
+
+```java
+// decapet-official/backend/src/main/java/com/backend/domain/user/repository/UserRepository.java:39-42
+default User getByIdAndDeletedAtIsNull(String id) {
+    return findByIdAndDeletedAtIsNull(id)
+        .orElseThrow(UserNotFoundException::new);
+}
+```
+
+---
+
+## 9. 상수 클래스 이름 규칙 (must)
+
+- 공용 검증 정규식·메시지는 `ValidationConstants`에 모아둔다.
+- 클래스는 `private` 생성자를 두어 인스턴스화를 방지한다.
+- 상수명은 `{대상}_{구분자}` 형태: `PHONE_REGEX`, `PHONE_MESSAGE`.
+
+```java
+// decapet-official/backend/src/main/java/com/backend/global/common/constants/ValidationConstants.java:3-6
+public final class ValidationConstants {
+    private ValidationConstants() {}
+    public static final String PHONE_REGEX = "^010\\d{8}$";
+}
+```
+
+---
+
+## 10. 체크리스트
+
+- [ ] 클래스명이 PascalCase이고 적절한 Suffix(`Controller`/`Service`/`Repository`/`Mapper`/`Exception`)를 갖는가
+- [ ] 메서드·변수명이 camelCase인가
+- [ ] 상수가 UPPER_SNAKE_CASE인가
+- [ ] URL 경로 세그먼트가 kebab-case이고 `/api/v1/{domain}` 구조를 따르는가
+- [ ] 요청 DTO가 `{Action}{Entity}Request` 형식의 `record`인가
+- [ ] 응답 DTO가 `{Action}{Entity}Response` 또는 `{Entity}Response` 형식의 `record`인가
+- [ ] Entity 클래스가 단순 명사 형태(suffix 없음)인가
+- [ ] Repository `default` 래퍼 메서드가 `getBy` 접두사를 사용하는가
+- [ ] soft-delete 조건에 `AndDeletedAtIsNull`이 포함되어 있는가
+- [ ] 검증 정규식이 `ValidationConstants`에 상수로 선언되어 있는가

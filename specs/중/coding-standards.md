@@ -1,83 +1,101 @@
-# coding-standards.md — 중 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
+# coding-standards.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
-## 개요
+---
 
-이 문서는 decapet-official/backend 프로젝트에서 중 등급 작업자가 따라야 할 코딩 원칙을 정의한다.
-SOLID 원칙 전체를 권장하되 강제하지는 않는다.
-생성자 주입, record DTO, 필드 선언 위치, import 정리는 이 등급에서도 강제한다.
-상 등급 원본은 MyBatis 기반이나, 본 프로젝트는 JPA + Spring Data를 사용하므로 Mapper XML 관련 항목은 적용하지 않는다.
+## 1. 개요
 
-## 변경/완화 사항
+이 문서는 `com.backend` 패키지 전반에 적용되는 코딩 원칙과 품질 기준을 정의한다.
+생성자 주입, record DTO, 공통 응답·예외 체계를 중심으로 일관된 코드 품질을 유지한다.
+신규 파일 작성과 기존 파일 수정 모두에 적용된다.
 
-- 상 등급의 SOLID 5원칙 전부 강제 → 중 등급은 SRP·DIP 중심으로 권장 수준으로 완화
-- 상 등급의 "인터페이스와 추상화 활용(OCP)" → 단일 구현체이면 인터페이스 생략 허용
-- 상 등급의 "Mock 가능한 인터페이스 설계" → `@SpringBootTest` 또는 Testcontainers 사용으로 대체 가능
-- MyBatis Mapper / XML 관련 코딩 표준은 해당 없음 (JPA + Spring Data 사용)
+---
 
-## 이 등급에서 강제하는 것
+## 2. 설계 원칙
 
-**must**
-- 생성자 주입만 사용한다. Lombok `@RequiredArgsConstructor`로 선언한다.
-- 필드 선언은 클래스 최상단에 둔다. `static final` 상수 → 인스턴스 `final` 필드 순서를 지킨다.
-- Request / Response DTO는 Java `record`로 선언한다.
-- `import`는 와일드카드(`*`) 없이 개별 지정한다. 사용하지 않는 import는 제거한다.
-- 예외는 `BusinessException`을 상속한 도메인 전용 예외로 던진다. `RuntimeException`을 직접 던지지 않는다.
-- 검증 상수는 `ValidationConstants`에 정의하고 `@Pattern(regexp = ValidationConstants.XXX_REGEX)` 형태로 참조한다.
+### 2.1 단일 책임 원칙 (should)
+각 클래스·메서드는 가능한 한 하나의 책임만 갖도록 설계한다.
+Service는 비즈니스 로직, Controller는 HTTP 처리만 담당한다.
 
-**should**
-- 각 클래스는 하나의 책임을 갖도록 설계한다 (SRP 권장).
-- 고수준 모듈(Service)은 저수준 구현(Repository 구현체)에 직접 의존하지 않도록 인터페이스를 통해 접근한다 (DIP 권장).
-- 주석은 "왜(Why)"에 집중하고, "무엇을(What)"은 코드 자체로 표현한다.
-- 불필요한 객체 생성을 피한다.
+### 2.2 개방-폐쇄 원칙 (should)
+기존 코드 수정 없이 인터페이스·신규 클래스 추가로 기능을 확장하는 방향을 우선한다.
 
-## 예시 코드
+### 2.3 의존성 역전 원칙 (should)
+Service가 Repository 구현체에 직접 의존하지 않도록 인터페이스 타입으로 주입받는다.
 
-생성자 주입 + `@RequiredArgsConstructor` (domain/user/service/UserService.java:31-48):
+---
+
+## 3. 강제 사항
+
+### 3.1 의존성 주입 (must)
+- 필드 주입(`@Autowired`)과 수정자 주입은 사용하지 않는다.
+- `@RequiredArgsConstructor` + `private final` 생성자 주입만 허용한다.
 
 ```java
-// com.backend.domain.user.service.UserService
+// decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:28-32
 @Service
 @RequiredArgsConstructor
 public class UserService {
-
-    private static final int VERIFICATION_TTL_MINUTES = 5;  // 상수: 최상단
-
-    private final UserRepository userRepository;             // 필드: 최상단
-    private final PasswordEncoder passwordEncoder;
-
-    @Transactional(readOnly = true)
-    public UserResponse getUser(String userId) {
-        User user = userRepository.getByIdAndDeletedAtIsNull(userId);
-        return userResponseMapper.toResponse(user);
-    }
-}
+    private final UserRepository userRepository;
 ```
 
-record DTO + ValidationConstants 참조 (domain/user/dto/request/PhoneVerifyRequest.java:9-20):
+### 3.2 DTO는 Java record (must)
+- 요청·응답 DTO는 Java `record`로 선언한다.
+- DTO 내부에 비즈니스 로직을 두지 않는다.
 
 ```java
-// com.backend.domain.user.dto.request.PhoneVerifyRequest
+// decapet-official/backend/src/main/java/com/backend/domain/user/dto/request/PhoneVerifyRequest.java:9
 public record PhoneVerifyRequest(
         @NotBlank(message = "전화번호를 입력해주세요.")
         @Pattern(regexp = ValidationConstants.PHONE_REGEX, message = ValidationConstants.PHONE_MESSAGE)
         String phone,
-
-        @NotBlank(message = "인증번호를 입력해주세요.")
-        @Pattern(regexp = "^\\d{6}$", message = "인증번호는 6자리 숫자여야 합니다.")
         String code
 ) {}
 ```
 
-## 체크리스트
+### 3.3 공통 응답 (must)
+- 성공 응답은 반드시 `SuccessResponse.of(SuccessCode, data)` 형태를 사용한다.
 
-- [ ] `@Autowired` 필드 주입 또는 수정자 주입을 사용하지 않는가?
-- [ ] `@RequiredArgsConstructor`를 사용하고 모든 주입 필드가 `final`인가?
-- [ ] 필드 선언이 클래스 최상단(static 상수 → 인스턴스 필드 순)에 위치하는가?
-- [ ] Request / Response DTO가 `record`로 선언되었는가?
-- [ ] import에 와일드카드(`*`)가 없고 미사용 import가 제거되었는가?
-- [ ] 예외를 `RuntimeException`으로 직접 던지지 않고 `BusinessException` 계열을 사용하는가?
-- [ ] 검증 정규식이 `ValidationConstants` 상수를 참조하는가?
-- [ ] `@Transactional(readOnly = true)`를 조회 메서드에 적용하였는가?
-- [ ] 메서드 하나가 한 가지 역할만 수행하는가?
+```java
+// decapet-official/backend/src/main/java/com/backend/domain/user/controller/UserController.java:38-39
+return ResponseEntity.ok(SuccessResponse.of(SuccessCode.USER_GET_SUCCESS, response));
+```
+
+### 3.4 예외 처리 (must)
+- 비즈니스 예외는 `BusinessException` 하위 타입으로 정의하고 `ErrorCode`를 주입한다.
+- `GlobalExceptionHandler`가 처리하는 예외를 Controller·Service에서 중복 catch하지 않는다.
+
+### 3.5 @Transactional 명시 (must)
+- 조회 메서드에는 `@Transactional(readOnly = true)`, 쓰기 메서드에는 `@Transactional`을 명시한다.
+
+### 3.6 매직 넘버 (should)
+- 코드 내 리터럴 숫자·정규식 패턴은 `static final` 상수 또는 `ValidationConstants`로 추출한다.
+
+```java
+// decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:34
+private static final int VERIFICATION_TTL_MINUTES = 5;
+```
+
+### 3.7 인증 정보 수신 (must)
+- Controller에서 인증된 사용자 ID는 `@AuthenticationPrincipal String userId`로만 받는다.
+
+---
+
+## 4. 코드 스타일
+
+- 들여쓰기: 스페이스 4칸
+- import 와일드카드(`*`) 금지
+- 클래스 최상단에 `static final` 상수, 그 아래에 `private final` 필드 선언
+- 주석은 '왜(Why)'에 집중
+
+---
+
+## 5. 체크리스트
+
+- [ ] `@RequiredArgsConstructor` + `private final` 생성자 주입만 사용하는가
+- [ ] 요청·응답 DTO가 `record`로 선언되어 있는가
+- [ ] 성공 응답이 `SuccessResponse.of(...)` 형태인가
+- [ ] 비즈니스 예외가 `BusinessException` 하위 타입이고 `ErrorCode`를 포함하는가
+- [ ] 조회 메서드에 `@Transactional(readOnly = true)`가 명시되어 있는가
+- [ ] 리터럴 정규식·숫자가 상수로 추출되어 있는가
+- [ ] import 와일드카드가 없는가

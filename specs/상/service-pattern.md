@@ -1,493 +1,214 @@
-#service-pattern.md
-## 개요
- 
-이 규칙은 Spring Boot Service 클래스 작성을 위한 표준 패턴을 정의합니다. 비즈니스 로직을 담당하는 Service 계층의 설계 원칙과 구현 패턴을 제공합니다.
- 
-## Service 설계 원칙
- 
-### 1. 비즈니스 로직 중심
-- 비즈니스 규칙과 로직을 Service 계층에 집중
-- 트랜잭션 관리
-- 도메인 객체 간의 협력 조정
- 
-### 2. 단일 책임 원칙
-- 하나의 Service는 하나의 도메인 또는 기능만 담당
-- 복잡한 비즈니스 로직은 여러 Service로 분할
- 
-### 3. 의존성 주입
-- 생성자 주입을 통한 의존성 관리
-- 인터페이스를 통한 느슨한 결합
- 
-## Service 패턴 구조
- 
-### 템플릿 기반 구현
-이 패턴은 `templates/springboot/service-template.java` 템플릿을 기반으로 구현됩니다.
- 
-#### 템플릿 사용 방법
-1. 템플릿 파일을 복사하여 새로운 Service 생성
-2. `{Resource}` 플레이스홀더를 실제 리소스명으로 교체
-3. `{resource}` 플레이스홀더를 소문자 리소스명으로 교체
-4. 필요한 메서드만 선택적으로 구현
- 
-#### 기본 Service 구조
-```java
-// ✅ 템플릿 기반 Service 패턴
-// templates/springboot/service-template.java 참조
-@Service
-@Transactional
-@Slf4j
-@RequiredArgsConstructor
-public class {Resource}ServiceImpl implements {Resource}Service {
-     
-    private final {Resource}Repository {resource}Repository;
-    private final {Resource}Mapper {resource}Mapper;
-    private final ValidationService validationService;
-    private final NotificationService notificationService;
-     
-    // 기본 CRUD 메서드들
-    // - findById(Long id)
-    // - findAll()
-    // - findByCondition({Resource}SearchRequest request, Pageable pageable)
-    // - create(Create{Resource}Request request)
-    // - update(Long id, Update{Resource}Request request)
-    // - delete(Long id)
-     
-    // 비즈니스 로직 메서드들
-    // - activate(Long id)
-    // - deactivate(Long id)
-    // - search{Resource}s({Resource}SearchRequest request)
-}
-```
- 
-### 특화된 Service 패턴
- 
-#### 복잡한 비즈니스 로직 Service
-```java
-// ✅ 복잡한 비즈니스 로직 Service 패턴
-@Service
-@Transactional
-@Slf4j
-@RequiredArgsConstructor
-public class CardTransactionService {
-     
-    private final CardService cardService;
-    private final AccountService accountService;
-    private final TransactionRepository transactionRepository;
-    private final NotificationService notificationService;
-    private final AuditService auditService;
-     
-    @Transactional
-    public TransferResult transfer(TransferRequest request) {
-        log.info("이체 요청 시작: fromCard={}, toCard={}, amount={}",
-                maskCardNumber(request.getFromCardNumber()),
-                maskCardNumber(request.getToCardNumber()),
-                request.getAmount());
-         
-        try {
-            // 1. 카드 검증
-            Card fromCard = validateAndGetCard(request.getFromCardNumber());
-            Card toCard = validateAndGetCard(request.getToCardNumber());
-             
-            // 2. 잔액 검증
-            validateBalance(fromCard, request.getAmount());
-             
-            // 3. 이체 실행
-            TransferResult result = executeTransfer(fromCard, toCard, request);
-             
-            // 4. 거래 기록
-            Transaction transaction = recordTransaction(request, result);
-             
-            // 5. 알림 발송
-            sendNotifications(fromCard, toCard, result);
-             
-            // 6. 감사 로그
-            auditService.logTransfer(transaction);
-             
-            log.info("이체 완료: transactionId={}", transaction.getId());
-             
-            return result;
-             
-        } catch (Exception e) {
-            log.error("이체 실패: request={}", request, e);
-            throw new TransferException("이체 처리 중 오류가 발생했습니다", e);
-        }
-    }
-     
-    private Card validateAndGetCard(String cardNumber) {
-        Card card = cardService.findByCardNumber(cardNumber);
-         
-        if (card.getStatus() != CardStatus.ACTIVE) {
-            throw new InvalidCardStatusException("카드가 활성 상태가 아닙니다: " + cardNumber);
-        }
-         
-        return card;
-    }
-     
-    private void validateBalance(Card card, BigDecimal amount) {
-        if (card.getBalance().compareTo(amount) < 0) {
-            throw new InsufficientBalanceException("잔액이 부족합니다");
-        }
-    }
-     
-    @Transactional
-    protected TransferResult executeTransfer(Card fromCard, Card toCard, TransferRequest request) {
-        // 출금
-        fromCard.withdraw(request.getAmount());
-        cardService.update(fromCard);
-         
-        // 입금
-        toCard.deposit(request.getAmount());
-        cardService.update(toCard);
-         
-        return TransferResult.builder()
-                .success(true)
-                .transactionId(generateTransactionId())
-                .amount(request.getAmount())
-                .build();
-    }
-     
-    private Transaction recordTransaction(TransferRequest request, TransferResult result) {
-        Transaction transaction = Transaction.builder()
-                .fromCardNumber(request.getFromCardNumber())
-                .toCardNumber(request.getToCardNumber())
-                .amount(request.getAmount())
-                .transactionId(result.getTransactionId())
-                .status(TransactionStatus.COMPLETED)
-                .build();
-         
-        return transactionRepository.save(transaction);
-    }
-     
-    private void sendNotifications(Card fromCard, Card toCard, TransferResult result) {
-        notificationService.sendTransferNotification(fromCard, result);
-        notificationService.sendTransferNotification(toCard, result);
-    }
-}
-```
- 
-#### 검색 및 필터링 Service
-```java
-// ✅ 검색 Service 패턴
-@Service
-@Transactional
-@Slf4j
-@RequiredArgsConstructor
-public class CardSearchService {
-     
-    private final CardRepository cardRepository;
-    private final CardMapper cardMapper;
-    private final CacheService cacheService;
-     
-    @Transactional(readOnly = true)
-    public Page<Card> searchCards(CardSearchRequest request, Pageable pageable) {
-        log.debug("카드 검색 시작: request={}", request);
-         
-        // 캐시 키 생성
-        String cacheKey = generateCacheKey(request, pageable);
-         
-        // 캐시에서 조회 시도
-        Page<Card> cachedResult = cacheService.get(cacheKey);
-        if (cachedResult != null) {
-            log.debug("캐시에서 검색 결과 조회: cacheKey={}", cacheKey);
-            return cachedResult;
-        }
-         
-        // DB에서 검색
-        Page<Card> result = cardRepository.searchCards(request, pageable);
-         
-        // 캐시에 저장
-        cacheService.put(cacheKey, result, Duration.ofMinutes(10));
-         
-        log.debug("카드 검색 완료: totalElements={}", result.getTotalElements());
-         
-        return result;
-    }
-     
-    @Transactional(readOnly = true)
-    public List<Card> findCardsByUser(Long userId) {
-        log.debug("사용자별 카드 조회 시작: userId={}", userId);
-         
-        List<Card> cards = cardRepository.findByUserId(userId);
-         
-        log.debug("사용자별 카드 조회 완료: userId={}, count={}", userId, cards.size());
-         
-        return cards;
-    }
-     
-    @Transactional(readOnly = true)
-    public List<Card> findCardsByStatus(CardStatus status) {
-        log.debug("상태별 카드 조회 시작: status={}", status);
-         
-        List<Card> cards = cardRepository.findByStatus(status);
-         
-        log.debug("상태별 카드 조회 완료: status={}, count={}", status, cards.size());
-         
-        return cards;
-    }
-     
-    private String generateCacheKey(CardSearchRequest request, Pageable pageable) {
-        return String.format("card_search:%s:%s:%s:%s",
-                request.getCardType(),
-                request.getStatus(),
-                pageable.getPageNumber(),
-                pageable.getPageSize());
-    }
-}
-```
- 
+# service-pattern.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
-## 트랜잭션 관리 패턴
- 
-### 트랜잭션 어노테이션 사용
-```java
-// ✅ 트랜잭션 어노테이션 패턴
-@Service
-@Transactional
-public class CardService {
-     
-    @Transactional(readOnly = true)  // 읽기 전용 트랜잭션
-    public Card findById(Long id) {
-        return cardRepository.findById(id)
-                .orElseThrow(() -> new CardNotFoundException("카드를 찾을 수 없습니다"));
-    }
-     
-    @Transactional  // 기본 트랜잭션 (읽기/쓰기)
-    public Card create(CreateCardRequest request) {
-        Card card = cardMapper.toEntity(request);
-        return cardRepository.save(card);
-    }
-     
-    @Transactional(rollbackFor = {BusinessException.class})  // 특정 예외 시 롤백
-    public void transfer(TransferRequest request) {
-        // 이체 로직
-    }
-     
-    @Transactional(propagation = Propagation.REQUIRES_NEW)  // 새로운 트랜잭션
-    public void auditLog(AuditEvent event) {
-        // 감사 로그 기록
-    }
-}
-```
- 
-### 트랜잭션 경계 설정
-```java
-// ✅ 트랜잭션 경계 설정 패턴
-@Service
-@Transactional
-@RequiredArgsConstructor
-public class OrderService {
-     
-    private final OrderRepository orderRepository;
-    private final PaymentService paymentService;
-    private final InventoryService inventoryService;
-    private final NotificationService notificationService;
-     
-    @Transactional
-    public Order createOrder(CreateOrderRequest request) {
-        // 1. 주문 생성
-        Order order = createOrderEntity(request);
-        order = orderRepository.save(order);
-         
-        // 2. 결제 처리
-        PaymentResult paymentResult = paymentService.processPayment(order);
-         
-        // 3. 재고 차감
-        inventoryService.decreaseStock(order.getItems());
-         
-        // 4. 알림 발송 (별도 트랜잭션)
-        notificationService.sendOrderConfirmation(order);
-         
-        return order;
-    }
-     
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void sendOrderConfirmation(Order order) {
-        // 알림 발송은 별도 트랜잭션으로 처리
-        notificationService.sendEmail(order.getUser().getEmail(), "주문 확인");
-    }
-}
-```
- 
+## 1. 개요
 
-## 예외 처리 패턴
- 
-### 비즈니스 예외 정의
-```java
-// ✅ 비즈니스 예외 패턴
-public class BusinessException extends RuntimeException {
-    private final String errorCode;
-     
-    public BusinessException(String message, String errorCode) {
-        super(message);
-        this.errorCode = errorCode;
-    }
-     
-    public String getErrorCode() {
-        return errorCode;
-    }
-}
- 
-public class InsufficientBalanceException extends BusinessException {
-    public InsufficientBalanceException(String message) {
-        super(message, "INSUFFICIENT_BALANCE");
-    }
-}
- 
-public class InvalidCardStatusException extends BusinessException {
-    public InvalidCardStatusException(String message) {
-        super(message, "INVALID_CARD_STATUS");
-    }
-}
-```
- 
-### Service 레벨 예외 처리
-```java
-// ✅ Service 레벨 예외 처리 패턴
-@Service
-@Transactional
-@Slf4j
-@RequiredArgsConstructor
-public class CardService {
-     
-    public Card findByCardNumber(String cardNumber) {
-        try {
-            return cardRepository.findByCardNumber(cardNumber)
-                    .orElseThrow(() -> new CardNotFoundException("카드를 찾을 수 없습니다: " + cardNumber));
-        } catch (CardNotFoundException e) {
-            log.warn("카드를 찾을 수 없습니다: {}", cardNumber);
-            throw e;
-        } catch (Exception e) {
-            log.error("카드 조회 중 오류 발생: {}", cardNumber, e);
-            throw new CardServiceException("카드 조회 중 오류가 발생했습니다", e);
-        }
-    }
-     
-    public void transfer(TransferRequest request) {
-        try {
-            // 이체 로직
-            executeTransfer(request);
-        } catch (InsufficientBalanceException e) {
-            log.warn("잔액 부족으로 이체 실패: {}", request);
-            throw e;
-        } catch (Exception e) {
-            log.error("이체 처리 중 오류 발생: {}", request, e);
-            throw new TransferException("이체 처리 중 오류가 발생했습니다", e);
-        }
-    }
-}
-```
- 
-## 검증 패턴
- 
-### 비즈니스 검증
-```java
-// ✅ 비즈니스 검증 패턴
-@Service
-@Transactional
-@RequiredArgsConstructor
-public class CardValidationService {
-     
-    private final CardRepository cardRepository;
-    private final UserService userService;
-     
-    public void validateCreateCard(CreateCardRequest request) {
-        // 사용자 존재 여부 검증
-        if (!userService.existsById(request.getUserId())) {
-            throw new UserNotFoundException("사용자를 찾을 수 없습니다: " + request.getUserId());
-        }
-         
-        // 카드 번호 중복 검증
-        if (cardRepository.existsByCardNumber(request.getCardNumber())) {
-            throw new DuplicateCardNumberException("이미 존재하는 카드 번호입니다: " + request.getCardNumber());
-        }
-         
-        // 카드 타입별 제한 검증
-        validateCardTypeLimits(request.getUserId(), request.getCardType());
-    }
-     
-    public void validateTransfer(TransferRequest request) {
-        // 카드 존재 여부 검증
-        Card fromCard = cardRepository.findByCardNumber(request.getFromCardNumber())
-                .orElseThrow(() -> new CardNotFoundException("출금 카드를 찾을 수 없습니다"));
-         
-        Card toCard = cardRepository.findByCardNumber(request.getToCardNumber())
-                .orElseThrow(() -> new CardNotFoundException("입금 카드를 찾을 수 없습니다"));
-         
-        // 카드 상태 검증
-        if (fromCard.getStatus() != CardStatus.ACTIVE) {
-            throw new InvalidCardStatusException("출금 카드가 활성 상태가 아닙니다");
-        }
-         
-        if (toCard.getStatus() != CardStatus.ACTIVE) {
-            throw new InvalidCardStatusException("입금 카드가 활성 상태가 아닙니다");
-        }
-         
-        // 잔액 검증
-        if (fromCard.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new InsufficientBalanceException("잔액이 부족합니다");
-        }
-         
-        // 이체 한도 검증
-        validateTransferLimit(fromCard, request.getAmount());
-    }
-     
-    private void validateCardTypeLimits(Long userId, CardType cardType) {
-        long cardCount = cardRepository.countByUserIdAndCardType(userId, cardType);
-         
-        switch (cardType) {
-            case BASIC:
-                if (cardCount >= 3) {
-                    throw new CardLimitExceededException("기본 카드는 최대 3개까지 발급 가능합니다");
-                }
-                break;
-            case PREMIUM:
-                if (cardCount >= 1) {
-                    throw new CardLimitExceededException("프리미엄 카드는 최대 1개까지 발급 가능합니다");
-                }
-                break;
-        }
-    }
-     
-    private void validateTransferLimit(Card card, BigDecimal amount) {
-        BigDecimal dailyLimit = card.getDailyTransferLimit();
-        BigDecimal dailyUsed = card.getDailyTransferUsed();
-         
-        if (dailyUsed.add(amount).compareTo(dailyLimit) > 0) {
-            throw new TransferLimitExceededException("일일 이체 한도를 초과했습니다");
-        }
-    }
-}
-```
- 
+서비스 계층은 도메인 비즈니스 로직의 진입점이다. 트랜잭션 경계 관리, 도메인 객체 협력 조정, 커스텀 예외 발생, 이벤트 발행을 담당한다. 컨트롤러로부터 식별자(userId 등)와 DTO를 수신하고, Repository를 통해 엔티티를 가져와 도메인 메서드를 호출하며, 결과를 DTO로 변환해 반환한다.
 
-## 체크리스트
- 
-### Service 구조
-- [ ] 인터페이스와 구현체 분리
-- [ ] 단일 책임 원칙 준수
-- [ ] 의존성 주입 사용
-- [ ] 적절한 패키지 구조
- 
-### 비즈니스 로직
-- [ ] 비즈니스 규칙 구현
-- [ ] 트랜잭션 경계 설정
-- [ ] 검증 로직 구현
-- [ ] 예외 처리 구현
- 
-### 트랜잭션 관리
-- [ ] 적절한 트랜잭션 어노테이션 사용
-- [ ] 읽기 전용 트랜잭션 활용
-- [ ] 트랜잭션 전파 설정
-- [ ] 롤백 정책 정의
- 
-### 예외 처리
-- [ ] 비즈니스 예외 정의
-- [ ] 적절한 예외 계층 구조
-- [ ] 로깅과 예외 처리
-- [ ] 사용자 친화적 에러 메시지
- 
-### 성능 및 유지보수
-- [ ] 캐싱 전략 적용
-- [ ] 로깅 구현
-- [ ] 테스트 가능한 구조
-- [ ] 코드 중복 제거
+본 프로젝트 서비스 구현의 기준은 `com.backend.domain.user.service.UserService`이다.
+
+---
+
+## 2. 원칙 / 패턴 설명
+
+### 2.1 인터페이스 분리
+
+서비스는 **인터페이스(`{Domain}Service`) + 구현체(`{Domain}ServiceImpl`)** 형태로 분리한다. 단, 구현체가 1개로 확정된 경우에도 인터페이스 분리를 적용하여 테스트 가능성과 교체 유연성을 확보한다.
+
+현재 `UserService`는 단일 클래스로 구현되어 있으나, 신규 도메인은 인터페이스를 분리해 작성한다.
+
+### 2.2 트랜잭션 전략
+
+- 클래스 레벨 `@Transactional` 선언으로 기본 쓰기 트랜잭션 보장
+- 조회 전용 메서드는 반드시 `@Transactional(readOnly = true)` 명시
+- 쓰기 메서드는 클래스 레벨에서 상속하되, 특수 전파 정책이 필요한 경우 메서드 레벨에 재선언
+
+### 2.3 도메인 검증 메서드 분리
+
+중복 확인, 존재 확인 등의 검증 로직은 Repository의 `default` 메서드(`validateXxxNotDuplicate`)로 위임하거나 서비스 내 private 메서드로 분리한다. 인라인 if 분기로 작성하지 않는다.
+
+### 2.4 엔티티 조회 패턴
+
+엔티티 조회 시 `Optional` 직접 처리 대신 Repository에 정의된 `getByXxx()` default 메서드를 사용한다. 이 메서드는 없을 경우 즉시 도메인 예외를 던진다.
+
+```java
+// 금지
+userRepository.findByIdAndDeletedAtIsNull(userId)
+    .orElseThrow(() -> new UserNotFoundException());
+
+// 권장
+User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+```
+
+### 2.5 도메인 이벤트
+
+트랜잭션 커밋 이후 비동기로 처리해야 하는 cascade 작업(연관 데이터 삭제, 외부 서비스 호출 등)은 `ApplicationEventPublisher`로 도메인 이벤트를 발행한다. 이벤트 클래스는 `record`로 정의한다.
+
+---
+
+## 3. 강제 사항
+
+### must (반드시 준수)
+
+| 항목 | 내용 |
+|------|------|
+| `@Service` | 구현체 클래스에 선언 |
+| `@RequiredArgsConstructor` | 생성자 주입 전용. `@Autowired` 필드 주입 금지 |
+| 클래스 레벨 `@Transactional` | 쓰기 기본값 보장 |
+| 조회 메서드 `@Transactional(readOnly = true)` | 모든 조회 전용 메서드에 명시 |
+| 인터페이스 분리 | `{Domain}Service` 인터페이스 + `{Domain}ServiceImpl` 구현체 |
+| `getByXxx()` default 메서드 사용 | Repository에서 정의한 예외 자동 throw 메서드 활용 |
+| 도메인 검증 메서드 분리 | 중복/존재 검증은 Repository `validateXxx` 또는 private 메서드로 분리 |
+| 도메인 이벤트 (`UserDeletedEvent` 패턴) | 트랜잭션 후 처리 작업은 `ApplicationEventPublisher` 사용 |
+| 커스텀 예외 throw | `BusinessException` 하위 커스텀 예외만 사용. `RuntimeException` 직접 throw 금지 |
+
+### should (권장)
+
+- 메서드 하나의 책임은 단일 비즈니스 시나리오 처리
+- 외부 서비스 호출(`SmsService` 등)은 트랜잭션 외부에서 실행하거나 `TransactionTemplate`으로 경계를 명시적으로 제어
+- 복잡한 생성 로직은 팩토리 메서드나 Mapper로 위임
+
+---
+
+## 4. 예시 코드
+
+### 4.1 기본 서비스 구조
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:30-55`
+
+```java
+@Service
+@RequiredArgsConstructor
+public class UserService {
+
+    private final UserRepository userRepository;
+    private final UserMapper userMapper;
+    private final UserResponseMapper userResponseMapper;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Transactional(readOnly = true)
+    public UserResponse getUser(String userId) {
+        User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+        return userResponseMapper.toResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateProfile(String userId, UpdateProfileRequest request) {
+        User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+        user.updateProfile(userMapper.toProfileUpdateInfo(request));
+        return userResponseMapper.toResponse(user);
+    }
+}
+```
+
+### 4.2 도메인 이벤트 발행 패턴
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:67-77`
+
+```java
+@Transactional
+public void deleteUser(String userId) {
+    User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+
+    // 즉시 처리: 토큰 무효화 + PII 익명화 + soft delete
+    refreshTokenRepository.deleteByUserId(userId);
+    user.anonymize(passwordEncoder.encode(UUID.randomUUID().toString()));
+    user.delete();
+
+    // 비동기 cascade 삭제 (트랜잭션 커밋 후 실행)
+    eventPublisher.publishEvent(new UserDeletedEvent(userId));
+}
+```
+
+### 4.3 이벤트 클래스 정의
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/event/UserDeletedEvent.java:1-3`
+
+```java
+// record로 정의하는 도메인 이벤트
+public record UserDeletedEvent(String userId) {}
+```
+
+### 4.4 트랜잭션 외부 실행이 필요한 경우
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:79-95`
+
+```java
+// SMS 발송처럼 외부 서비스 호출은 트랜잭션 커밋 완료 후 실행해야 하는 경우
+// TransactionTemplate으로 DB 작업 경계를 명시적으로 분리
+public void sendPhoneChangeSms(String userId, String phone) {
+    User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+    userRepository.validatePhoneNotDuplicate(phone, user.getPhone());
+
+    String code = transactionTemplate.execute(status -> {
+        verificationRepository.deleteByPhone(phone);
+        String verificationCode = generateVerificationCode();
+        Verification verification = verificationMapper.toEntity(
+                new VerificationCreateInfo(phone, verificationCode, VERIFICATION_TTL_MINUTES));
+        verificationRepository.save(verification);
+        return verificationCode;
+    });
+
+    smsService.sendVerificationCode(phone, code); // 트랜잭션 외부 실행
+}
+```
+
+### 4.5 커스텀 예외 사용
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:109-114`
+
+```java
+@Transactional
+public void changePassword(String userId, String accessToken, String currentPassword, String newPassword) {
+    User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+
+    if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+        throw new InvalidPasswordException(); // BusinessException 하위 커스텀 예외
+    }
+
+    user.updatePassword(passwordEncoder.encode(newPassword));
+    tokenService.blacklistAccessToken(accessToken);
+    tokenService.invalidateAllTokensByUserId(userId);
+}
+```
+
+```java
+// 예외 클래스 정의 패턴
+// com.backend.domain.user.exception.UserNotFoundException
+public class UserNotFoundException extends BusinessException {
+    public UserNotFoundException() {
+        super(ErrorCode.USER_NOT_FOUND);
+    }
+}
+```
+
+---
+
+## 5. 체크리스트
+
+### 클래스 선언
+- [ ] `@Service` 선언
+- [ ] `@RequiredArgsConstructor` 선언 (필드 주입 없음)
+- [ ] 클래스 레벨 `@Transactional` 선언
+- [ ] 서비스 인터페이스 분리 (`{Domain}Service` + `{Domain}ServiceImpl`)
+
+### 트랜잭션
+- [ ] 모든 조회 전용 메서드에 `@Transactional(readOnly = true)` 명시
+- [ ] 쓰기 메서드는 클래스 레벨 트랜잭션 상속 또는 메서드 레벨 재선언
+- [ ] 외부 서비스 호출이 포함된 경우 `TransactionTemplate` 또는 이벤트로 경계 분리
+
+### 도메인 로직
+- [ ] 엔티티 조회 시 `getByXxx()` default 메서드 사용
+- [ ] 검증 로직은 `validateXxx()` 메서드 또는 private 메서드로 분리
+- [ ] 엔티티 상태 변경은 도메인 메서드 호출로만 처리 (setter 직접 호출 금지)
+- [ ] 트랜잭션 후 cascade 작업은 `ApplicationEventPublisher`로 이벤트 발행
+
+### 예외 처리
+- [ ] 모든 예외는 `BusinessException` 하위 커스텀 예외 사용
+- [ ] 예외 클래스는 `com.backend.domain.{x}.exception` 패키지에 위치
+- [ ] `ErrorCode` enum에 에러 코드/메시지/HTTP 상태 정의 후 사용
+
+### 코드 품질
+- [ ] 컨트롤러 레이어 코드(응답 변환, HTTP 상태 판단) 없음
+- [ ] 메서드 하나가 단일 비즈니스 시나리오만 처리
+- [ ] `@Transactional` 없는 public 메서드는 의도적임을 주석으로 명시

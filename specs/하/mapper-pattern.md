@@ -1,61 +1,74 @@
-# mapper-pattern.md — 하 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
-
----
+# mapper-pattern.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
 ## 1. 개요
 
-이 프로젝트는 JPA + Spring Data만 사용한다.
-xml 기반 쿼리 파일(`Mapper.xml`, 파라미터 바인딩 `#{}`, `<foreach>` 등)은 사용하지 않는다.
-Repository는 `JpaRepository<Entity, String>` 직접 상속만 필수이며, Entity-DTO 변환 방식은 자율이다.
+두 가지 역할을 구분한다.
+
+1. **Repository**: `JpaRepository<T, String>` 상속. 데이터 접근 전담.
+2. **Domain Mapper**: Entity ↔ DTO 변환. 방식은 자유(`@Component` 클래스, static 메서드, 생성자 변환 모두 허용).
+
+기준 구현: `com.backend.domain.user.repository.UserRepository`, `com.backend.domain.user.dto.mapper.UserResponseMapper`
 
 ---
 
-## 2. 변경/완화 사항 (상 등급 대비)
+## 2. 원칙
 
-| 항목 | 상/중 등급 | 하 등급 |
-|------|-----------|---------|
-| `getByXxx()` default 메서드 | 필수 | 권장 |
-| `@Component *Mapper` 클래스 분리 | 필수 | `@Component`, static, 생성자 변환 모두 허용 |
-| 검증 default 메서드 | 권장 | 선택 |
-| `JpaSpecificationExecutor` 병행 상속 | 권장 | 선택 |
+- Repository는 `JpaRepository<Entity, String>` 상속
+- Entity ↔ DTO 변환 로직은 컨트롤러/서비스에 두지 않고 별도로 분리
 
 ---
 
 ## 3. 강제 사항
 
 ### must
-- `JpaRepository<Entity, String>` 상속 (ULID PK이므로 두 번째 타입은 `String`)
-- Entity↔DTO 변환 로직은 서비스나 컨트롤러에 인라인 작성 금지 — 별도 변환 수단 분리
 
-### should
-- `default getByXxx()` 메서드로 조회 실패 예외 처리
-- `@Component *Mapper` 클래스 + `toEntity()` / `toResponse()` 명시적 메서드
+- `JpaRepository<Entity, String>` 상속
+- Entity ↔ DTO 변환은 별도 클래스 또는 메서드로 분리 (방식 자유)
 
 ---
 
 ## 4. 예시 코드
 
+### 4.1 Repository
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/repository/UserRepository.java:23-42`
+
 ```java
-// com.backend.domain.user.repository.UserRepository 패턴 참고
-public interface ExampleRepository extends JpaRepository<Example, String> {
+public interface UserRepository extends JpaRepository<User, String> {
 
-    Optional<Example> findByIdAndDeletedAtIsNull(String id);
+    Optional<User> findByIdAndDeletedAtIsNull(String id);
 
-    default Example getById(String id) {
+    default User getByIdAndDeletedAtIsNull(String id) {
         return findByIdAndDeletedAtIsNull(id)
-                .orElseThrow(ExampleNotFoundException::new);
+            .orElseThrow(UserNotFoundException::new);
     }
+
+    boolean existsByEmailAndDeletedAtIsNull(String email);
 }
 ```
 
+### 4.2 Domain Mapper (@Component 방식)
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/dto/mapper/UserResponseMapper.java:9-25`
+
 ```java
-// com.backend.domain.user.dto.mapper.UserResponseMapper 패턴 참고
 @Component
-public class ExampleMapper {
-    public ExampleResponse toResponse(Example example) {
-        return new ExampleResponse(example.getId(), example.getName());
+public class UserResponseMapper {
+
+    public UserResponse toResponse(User user) {
+        return new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getName(),
+                user.getZipCode(),
+                user.getAddress(),
+                user.getDetailAddress(),
+                user.getRecipientName(),
+                user.getRecipientPhone(),
+                user.getPermissions()
+        );
     }
 }
 ```
@@ -64,7 +77,8 @@ public class ExampleMapper {
 
 ## 5. 체크리스트
 
-- [ ] `JpaRepository<Entity, String>` 상속이 되어 있는가
-- [ ] Entity↔DTO 변환이 서비스/컨트롤러 외부로 분리되어 있는가
-- [ ] xml 쿼리 파일이 없는가
-- [ ] 조회 실패 시 예외를 던지는가
+- [ ] `JpaRepository<Entity, String>` 상속
+- [ ] 파생 쿼리 메서드명 `findByXxx` 사용
+- [ ] Entity ↔ DTO 변환 로직을 서비스/컨트롤러에서 분리
+- [ ] 응답 DTO는 Java `record` 사용 권장
+- [ ] `com.backend.domain.{x}.repository` 패키지에 위치

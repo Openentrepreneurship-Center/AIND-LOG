@@ -1,73 +1,66 @@
-# encryption-decryption-guidelines.md — 하 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
+# encryption-decryption-guidelines.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
 ---
 
 ## 1. 개요
 
-하 등급은 가장 치명적인 두 가지 암호화 규칙만 강제한다.
-비밀번호 평문 저장과 JWT secret 하드코딩은 즉각적인 보안 사고로 이어지므로
-규모나 일정에 관계없이 모든 코드에서 반드시 지켜야 한다.
+이 문서는 `com.backend` 패키지에서 비밀번호와 JWT를 다룰 때 적용해야 하는 최소 암호화 정책을 정의한다.
 
 ---
 
-## 2. 변경/완화 사항
+## 2. 원칙
 
-| 상/중 등급 항목 | 하 등급 변경 내용 |
-|---|---|
-| AES-GCM PII 암호화 | 권고 (강제 아님) |
-| 복호화 응답 권한 검증 | 권고 (강제 아님) |
-| 암호화 유틸 위치 규정 | 권고 (강제 아님) |
-| 비밀번호 BCrypt | 강제 유지 |
-| JWT secret 외부화 | 강제 유지 |
+- 평문 비밀번호를 저장하지 않는다.
+- JWT secret을 코드에 하드코딩하지 않는다.
 
 ---
 
-## 3. 강제 사항 (2개)
+## 3. 강제 사항
 
-### 규칙 1. 비밀번호 BCrypt (must)
+**must**
 
-Spring Security `PasswordEncoder` (BCryptPasswordEncoder) 로 해시 후 저장한다.
-평문 비밀번호를 DB 에 저장하거나 로그에 출력하는 행위를 절대 금지한다.
+- 비밀번호는 `BCryptPasswordEncoder`로 단방향 해시한 후 저장한다.
+
+  ```java
+  // com.backend.global.config.SecurityConfig
+  @Bean
+  public PasswordEncoder passwordEncoder() {
+      return new BCryptPasswordEncoder();
+  }
+  ```
+
+- 비밀번호를 DB, 로그, 응답 어디에도 평문으로 출력하지 않는다.
+- 비밀번호 검증은 `passwordEncoder.matches(rawPassword, encodedPassword)`만 사용한다.
+
+- JWT secret은 `application-{profile}.yml`에 정의하고 `@Value("${jwt.secret}")`로 주입한다. 소스 코드에 하드코딩하지 않는다.
+
+  ```java
+  // com.backend.global.security.JwtProvider
+  public JwtProvider(@Value("${jwt.secret}") String secret, ...) {
+      this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+  }
+  ```
+
+---
+
+## 4. 코드 예시 (decapet 인용)
 
 ```java
-// SecurityConfig 에 PasswordEncoder 빈 등록
-@Bean
-public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
+// com.backend.global.util.AesEncryptor — 암호화 유틸 위치 참고
+// AES-256-GCM 기반 암호화. PII 저장 시 이 유틸을 경유한다.
+@Component
+public class AesEncryptor {
+    private static final String ALGORITHM = "AES/GCM/NoPadding";
+    // @Value("${otp.encryption-key}")로 키 주입 — 하드코딩 금지
 }
-
-// 사용 — 평문 비교 금지
-passwordEncoder.matches(rawPassword, storedHash);
-```
-
-### 규칙 2. JWT secret 외부화 (must)
-
-JWT 서명 비밀키를 코드나 VCS 에 평문으로 커밋하지 않는다.
-반드시 `application.yml` 환경변수 참조(`${JWT_SECRET}`) 형태로 관리한다.
-
-```yaml
-# application.yml
-jwt:
-  secret: ${JWT_SECRET}
-```
-
----
-
-## 4. 예시
-
-```java
-// 잘못된 예 — 절대 금지
-private static final String JWT_SECRET = "hardcoded-secret-key-1234";
-user.setPassword("plain1234");
 ```
 
 ---
 
 ## 5. 체크리스트
 
-- [ ] 비밀번호가 BCrypt 해시로 저장됨 — 평문 없음
-- [ ] `passwordEncoder.matches()` 로 비교 — 평문 직접 비교 없음
-- [ ] JWT secret 이 코드에 리터럴로 없음
-- [ ] `application.yml` 에서 `${...}` 환경변수 참조 확인
+- [ ] `BCryptPasswordEncoder` Bean 등록 및 단방향 해시 저장
+- [ ] 평문 비밀번호 DB·로그·응답 미포함
+- [ ] `passwordEncoder.matches()`로만 검증
+- [ ] `jwt.secret`을 `application-{profile}.yml` 외부화 (하드코딩 없음)

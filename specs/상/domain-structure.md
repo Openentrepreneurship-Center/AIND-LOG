@@ -1,782 +1,196 @@
-#domain-structure.md
+# domain-structure.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
+
+---
+
 ## 개요
 
+decapet-official/backend 는 비즈니스 컨텍스트 단위로 도메인을 분리한다.
+`com.backend.domain` 하위에 23개 도메인(`user`, `pet`, `order`, `payment`, `appointment`, `medicine`,
+`board`, `cart`, `medicinecart`, `product`, `customproduct`, `prescription`, `delivery`, `schedule`,
+`remotearea`, `spam`, `sitesetting`, `terms`, `admin`, `auth`, `breed`, `banner`, `notification`)이 위치하며,
+각 도메인은 내부적으로 표준 9종 하위 패키지를 갖는다.
+도메인 간 결합은 service 호출과 도메인 이벤트로만 허용하며, 타 도메인의 repository 를 직접 주입하지 않는다.
+공유 타입·유틸·설정은 `com.backend.global` 에만 위치한다.
 
+---
 
-이 문서는 프로젝트의 도메인 정의, 백엔드 패키지 구조, cross-domain access 원칙, 그리고 mapper 생성 규칙을 정의합니다. 
+## 원칙
 
-**데이터 계층의 엄격한 분리**와 **Service 계층의 유연한 접근**을 통해 도메인 경계를 명확히 하면서도 개발 효율성을 보장합니다.
+1. 도메인 = 하나의 비즈니스 컨텍스트. `user` 와 `pet` 은 별개 도메인이며, 하나의 도메인 패키지가 두 컨텍스트를 겸하지 않는다.
+2. 도메인 내 모든 레이어(controller → service → repository)는 동일 도메인 패키지 안에서만 완결된다.
+3. Cross-domain 의존은 service 레이어 호출만 허용한다. 타 도메인 repository / entity 를 직접 주입하면 안 된다.
+4. 도메인 삭제·상태 변경 등 연쇄 부작용은 도메인 이벤트(`ApplicationEventPublisher`)로 전달하여 결합도를 낮춘다.
+5. 공유가 필요한 타입(페이지 응답, 공통 DTO)은 `com.backend.global.common` 에만 정의한다.
+6. 모든 엔티티는 `com.backend.global.common.BaseEntity` 를 상속하며, PK 는 ULID 문자열로 자동 부여된다.
+7. Soft-delete 는 `BaseEntity.delete()` 호출로 처리하며, `@SQLRestriction("deleted_at IS NULL")` 으로 조회 시 자동 필터링한다.
 
+---
 
+## 강제 사항
 
+### must
 
-## 1. 프로젝트 도메인 정의
+- 도메인 패키지는 비즈니스 컨텍스트 1개에 대응해야 한다.
+- 각 도메인 패키지는 아래 9종 하위 패키지를 기준으로 구성해야 한다:
+  ```
+  controller/   - REST 컨트롤러 (+ Api 인터페이스로 Swagger 분리)
+  service/      - 비즈니스 로직
+  repository/   - Spring Data JPA Repository
+  entity/       - JPA 엔티티 및 enum
+  dto/
+    request/    - 입력 DTO
+    response/   - 출력 DTO
+    internal/   - 도메인 내부 전달 DTO (레이어 간)
+    mapper/     - DTO ↔ Entity 변환
+  exception/    - BusinessException 상속 예외 클래스
+  event/        - 도메인 이벤트 레코드 및 리스너
+  mapper/       - 도메인 수준 매퍼 (dto/mapper 와 별도 운용 시)
+  ```
+- Cross-domain 의존은 반드시 상대 도메인의 service 를 주입하는 방식으로만 구현해야 한다. 타 도메인 repository 직접 주입 금지.
+- 공유 타입은 `com.backend.global.common/` 에만 위치해야 한다. 도메인 패키지 내 공유 타입 금지.
+- 모든 엔티티는 `com.backend.global.common.BaseEntity` 를 상속해야 한다.
+- 엔티티 PK 는 ULID(`UlidGenerator.generate()`)로 생성해야 한다. 숫자형 자동증가(auto_increment) PK 금지.
+- 도메인 삭제·탈퇴 같은 연쇄 부작용은 `ApplicationEventPublisher` + 이벤트 레코드로 전달해야 한다.
 
+### should
 
+- `controller/` 내 컨트롤러와 Swagger API 인터페이스를 파일로 분리한다 (`PetController` / `PetApi`).
+- `dto/internal/` 을 두어 service 레이어 간 DTO 와 외부 요청/응답 DTO 를 명확히 구분한다.
+- 엔티티에 `@SQLRestriction("deleted_at IS NULL")` 을 적용하여 soft-delete 된 행이 조회에 포함되지 않도록 한다.
+- `@NoArgsConstructor(access = AccessLevel.PROTECTED)` 를 엔티티에 적용하여 무인자 생성을 제한한다.
 
-### 1.1 도메인 목록 및 약어
+---
 
+## 예시 (decapet 인용)
 
-
-| 업무구분 | Domain Name | 약어 | 설명 | 테이블 prefix |
-
-|---|----|---|---|---|
-
-민감정보는 삭제하였습니다.
-
-| Report | report | RP | 리포트 | tbrp* |
-
-| Monitoring | monitoring | MN | 모니터링 | tbmn* |
-
-
-
-### 1.2 도메인 분류
-
-
-
-#### 핵심 비즈니스 도메인
-
-- **XXXXX**: XXXXXX
-
-
-
-#### 운영 지원 도메인
-
-- **XXXXX**: XXXXXX
-
-
-
-
-#### 시스템 관리 도메인
-
-- **XXXXX**: XXXXXX
-
-
-
-
-#### 엔진 및 분석 도메인
-
-- **XXXXX**: XXXXXX
-
-
-
-
-
-## 2. 백엔드 패키지 구조
-
-
-
-### 2.1 Java 기본 패키지 구조
-
-
+### 디렉터리 구조 — user 도메인
 
 ```
-
-com.poc.backend/
-
-├── common/                    # 공통 모듈
-
-│   ├── config/               # 공통 설정
-
-│   ├── exception/            # 공통 예외
-
-│   ├── util/                 # 공통 유틸리티
-
-│   └── security/             # 보안 관련
-
-├── domain/                   # 도메인별 패키지
-
-│   ├── admin/               # AD - 시스템 관리
-
-│   │   ├── controller/
-
-│   │   ├── service/
-
-│   │   ├── mapper/
-
-│   │   ├── entity/
-
-│   │   └── dto/
-
-민감한 고객사 업무구조 정보는 삭제하였습니다.
-
-│   └── monitoring/          # MN - 모니터링
-
-│       ├── controller/
-
-│       ├── service/
-
-│       ├── mapper/
-
-│       ├── entity/
-
-│       └── dto/
-
-└── Application.java         # 메인 애플리케이션 클래스
-
+com.backend.domain.user/
+  controller/
+    UserController.java
+    UserApi.java            -- Swagger @Operation/@Tag 인터페이스
+    AdminUserController.java
+    AdminUserApi.java
+  service/
+    UserService.java
+    AdminUserService.java
+  repository/
+    UserRepository.java
+    UserTermConsentRepository.java
+  entity/
+    User.java
+    UserTermConsent.java
+    PermissionType.java     -- enum
+    TermConsent.java        -- enum
+  dto/
+    request/
+      UpdateProfileRequest.java
+      ChangePasswordRequest.java
+    response/
+      UserResponse.java
+      AdminUserListResponse.java
+    internal/
+      ProfileUpdateInfo.java
+    mapper/
+      UserMapper.java
+      UserResponseMapper.java
+      AdminUserResponseMapper.java
+  exception/
+    UserNotFoundException.java
+    DuplicateEmailException.java
+    InvalidPasswordException.java
+    UserAccountLockedException.java
+  event/
+    UserDeletedEvent.java
+    UserDeletionEventListener.java
 ```
 
-
-
-### 2.2 도메인별 세부 구조
-
-
-
-#### 2.2.1 Controller 계층
+### BaseEntity 상속 및 ULID PK
 
 ```java
-
-// ✅ 도메인별 Controller 네이밍 패턴
-
-com.poc.backend.domain.{domain}.controller/
-
-├── {Domain}Controller.java          # 기본 CRUD API
-
-├── {Domain}SearchController.java    # 검색 전용 API
-
-├── {Domain}AdminController.java     # 관리자 API
-
-└── {Domain}InternalController.java  # 내부 시스템 API
-
-```
-
-
-
-#### 2.2.2 Service 계층
-
-```java
-
-// ✅ 도메인별 Service 네이밍 패턴
-
-com.poc.backend.domain.{domain}.service/
-
-├── {Domain}Service.java             # 기본 비즈니스 로직
-
-├── {Domain}SearchService.java       # 검색 비즈니스 로직
-
-├── {Domain}ValidationService.java   # 검증 로직
-
-├── {Domain}ExternalService.java     # 외부 연동 로직
-
-└── impl/                           # 구현체
-
-    ├── {Domain}ServiceImpl.java
-
-    ├── {Domain}SearchServiceImpl.java
-
-    └── {Domain}ValidationServiceImpl.java
-
-```
-
-
-
-#### 2.2.3 Mapper 계층
-
-```java
-
-// ✅ 도메인별 Mapper 네이밍 패턴
-
-com.poc.backend.domain.{domain}.mapper/
-
-├── {Table}Mapper.java               # 테이블별 기본 Mapper
-
-├── {Table}SearchMapper.java         # 테이블별 검색 Mapper
-
-├── {Table}BatchMapper.java          # 테이블별 배치 Mapper
-
-└── {Table}StatisticsMapper.java     # 테이블별 통계 Mapper
-
-```
-
-
-
-#### 2.2.4 Entity 계층
-
-```java
-
-// ✅ 도메인별 Entity 네이밍 패턴
-
-com.poc.backend.domain.{domain}/
-
-├── entity/                         # 엔티티 (테이블 매핑)
-
-│   ├── {Table}.java
-
-│   └── {Table}History.java
-
-├── dto/                            # 데이터 전송 객체
-
-│   ├── request/
-
-│   │   ├── {Domain}CreateRequest.java
-
-│   │   ├── {Domain}UpdateRequest.java
-
-│   │   └── {Domain}SearchRequest.java
-
-│   └── response/
-
-│       ├── {Domain}Response.java
-
-│       ├── {Domain}ListResponse.java
-
-│       └── {Domain}DetailResponse.java
-
-├── enums/                          # 열거형
-
-│   ├── {Domain}Status.java
-
-│   └── {Domain}Type.java
-
-└── vo/                             # 값 객체
-
-    ├── {Domain}Statistics.java
-
-    └── {Domain}Summary.java
-
-```
-
-
-
-
-## 3. Cross-Domain Access 원칙
-
-
-
-### 3.1 기본 원칙
-
-
-
-#### 3.1.1 도메인 간 직접 접근 금지
-
-```java
-
-// ❌ 금지: 다른 도메인의 Mapper 직접 호출
-
-@Service
-
-public class CustomerServiceImpl {
-
-    @Autowired
-
-    private PaymentMapper paymentMapper; // 금지
-
-    
-
-    @Autowired
-
-    private AccountMapper accountMapper; // 금지
-
-}
-
-
-
-// ✅ 권장: 도메인 Service를 통한 접근
-
-@Service
-
-public class CustomerServiceImpl {
-
-    @Autowired
-
-    private PaymentService paymentService; // 권장
-
-    
-
-    @Autowired
-
-    private AccountService accountService; // 권장
-
-}
-
-```
-
-
-
-#### 3.1.2 공통 데이터 접근 패턴
-
-```java
-
-// ✅ 공통 서비스를 통한 데이터 접근
-
-@Service
-
-public class CommonDataService {
-
-    
-
-    // 공통 코드 조회
-
-    public List<CommonCode> getCommonCodes(String codeGroup) {
-
-        return commonCodeMapper.findByCodeGroup(codeGroup);
-
+// com.backend.global.common.BaseEntity
+@Getter
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+public abstract class BaseEntity implements Persistable<String> {
+
+    @Id
+    @Column(length = 26)
+    private String id;              // ULID 자동 부여
+
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime deletedAt;
+
+    protected BaseEntity() {
+        this.id = UlidGenerator.generate();
     }
 
-    
-
-    // 사용자 기본 정보 조회
-
-    public UserInfo getUserInfo(Long userId) {
-
-        return userMapper.findBasicInfoById(userId);
-
+    public void delete() {
+        this.deletedAt = DateTimeUtil.now();
     }
-
 }
-
 ```
 
-
-
-### 3.2 도메인 간 통신 패턴
-
-
-
-#### 3.2.1 Service 계층을 통한 통신
+### User 엔티티 — BaseEntity 상속, soft-delete
 
 ```java
-
-민감정보는 삭제하였습니다. 그냥 자바코드예제가 적혀있는 곳입니다.
-
+// com.backend.domain.user.entity.User
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
+@Table(name = "users")
+@SQLRestriction("deleted_at IS NULL")
+public class User extends BaseEntity {
+    // ...
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private Set<Pet> pets = new HashSet<>();
+    // ...
+}
 ```
 
-
-
-### 3.3 도메인 의존성 관리
-
-
-
-#### 3.3.1 허용되는 의존성
+### 도메인 이벤트 — UserDeletedEvent
 
 ```java
+// com.backend.domain.user.event.UserDeletedEvent
+public record UserDeletedEvent(String userId) {}
 
-// ✅ 허용되는 도메인 간 의존성
-
-민감정보는 삭제하였습니다.
-그냥 도메인간 어디서 어디호출은 되고 안되고를 주석으로 표현한 예제였습니다.
-
+// UserDeletionEventListener: pet, order 등 연관 도메인의 service 를 주입해 처리
+// 타 도메인 repository 를 직접 주입하지 않는다
 ```
 
-
-
-#### 3.3.2 금지되는 의존성
+### Cross-domain — service 호출 패턴
 
 ```java
-
-// ❌ 금지되는 도메인 간 의존성
-
-민감정보는 삭제하였습니다.
-그냥 도메인간 어디서 어디호출은 되고 안되고를 주석으로 표현한 예제였습니다.
-
-
+// com.backend.domain.pet.service.PetService (예시)
+@Service
+@RequiredArgsConstructor
+public class PetService {
+    private final PetRepository petRepository;       // 자신의 repository
+    private final UserService userService;           // 타 도메인 → service 호출만 허용
+    // private final UserRepository userRepository; // 금지: 타 도메인 repository 직접 주입 금지
+}
 ```
 
-
-
-### 3.4 Mapper 사용 정책 강화 (필수)
-
-
-
-#### 3.4.1 Cross-domain Mapper 직접 접근 금지
-
-```java
-
-민감정보는 삭제하였습니다.
-
-```
-
-
-
-#### 3.4.2 배치·성능 사유의 예외 허용 기준
-
-- 동일 도메인 내, 읽기 전용 조회 최적화 용 `QueryMapper`에 한해 서비스 내부에서 직접 호출 가능
-
-- 반드시: 서비스가 호출하고, 컨트롤러/타 도메인에서 해당 Mapper에 직접 접근 금지
-
-- 반드시: 주석에 사유(성능/배치), 범위(읽기 전용), 대안(캐시/뷰) 명시
-
-
-
-#### 3.4.3 테스트 용이성 및 변경 내성
-
-- Mapper는 DB 스키마 변경에 민감하므로, 외부 도메인에서는 Service를 경유해야 변경 영향 격리 가능
-
-- Service 인터페이스를 통해 계약을 고정하고, 내부 구현(쿼리/인덱스/캐시)은 자유롭게 변경
-
-
-
-### 3.5 Cross-Domain Facade/Port 패턴
-
-#### 3.5.1 읽기 전용 파사드 도입
-
-```java
-
-민감정보는 삭제하였습니다.
-
-```
-
-
-
-### 3.6 구현 체크리스트
-
-- [ ] 타 도메인 Mapper 직접 의존이 없는가?
-
-- [ ] 타 도메인 접근은 Service/ServiceImpl로 추상화되어 있는가?
-
-- [ ] 컨트롤러에서 Mapper 직접 접근을 하지 않는가?
-
-- [ ] 트랜잭션 경계는 도메인 작업 단위로 적절히 설정되었는가?
-
-- [ ] 배치/성능 예외는 주석과 테스트로 근거가 명확한가?
-
-
-
-### 3.7 내부 의존성 vs 외부 의존성
-
-- 내부 의존성(Internal Dependency): 동일 코드베이스/런타임 내 다른 도메인의 기능을 Service/ServiceImpl를 통해 호출
-
-  - 예: 민감정보라 삭제하였습니다.
-
-- 외부 의존성(External Dependency): 타 시스템과 네트워크 호출(REST, gRPC, MQ 등)
-
-  - 예: 민감정보라 삭제하였습니다.
-
-
-
-권장 규칙
-
-- 내부 의존성: 반드시 타 도메인의 Service/ServiceImpl를 통해 접근. Mapper 직접 접근 금지
-
-- 외부 의존성: 각 도메인의 `ExternalService` 또는 `client`/`adapter` 계층을 통해 캡슐화
-
-
-
-### 3.8 Cross-Domain 쓰기 정책(중요)
-
-- 타 도메인이 소유한 테이블에 쓰기(INSERT/UPDATE/DELETE)가 필요하면 반드시 그 도메인의 Service/ServiceImpl를 호출한다
-
-- 쓰기 순서가 중요한 경우, 장애 복구 전략(재시도/보상/사간일관성)을 명시한다
-
-
-
-### 3.9 Port/Facade 네이밍 · 패키징 가이드
-
-- 읽기 전용 포트: `{Domain}ReadonlyService`, 구현체: `{Domain}ReadonlyServiceImpl`
-
-- 쓰기/도메인 행위 포트: `{Domain}CommandService`, 구현체: `{Domain}CommandServiceImpl`
-
-- 패키지 권장: `com.poc.backend.domain.{domain}.service` 또는 `service.impl`
-
-- 호출 측(Service)은 Port 인터페이스만 의존하고, 구현체 바인딩은 스프링 빈으로 주입
-
-
-
-
-## 4. Mapper 생성 원칙
-
-
-
-### 4.1 도메인별 Mapper 패키지 구조
-
-
-
-#### 4.1.1 기본 패키지 구조
-
-```
-
-src/main/java/com/example/app/domain/{domain}/mapper/
-
-├── {Table}Mapper.java               # 기본 CRUD Mapper
-
-├── {Table}SearchMapper.java         # 검색 전용 Mapper
-
-├── {Table}BatchMapper.java          # 배치 작업 Mapper
-
-└── {Table}StatisticsMapper.java     # 통계 Mapper
-
-
-
-src/main/resources/mapper/{domain}/
-
-├── {Table}Mapper.xml
-
-├── {Table}SearchMapper.xml
-
-├── {Table}BatchMapper.xml
-
-└── {Table}StatisticsMapper.xml
-
-```
-
-
-
-#### 4.1.2 도메인별 Mapper 예시
-
-
-
-민감정보 삭제하였습니다.
-
-
-
-### 4.2 테이블별 Mapper 분리 원칙
-
-
-
-#### 4.2.1 One-to-One 매핑 원칙
-
-```java
-
-민감 정보 삭제하였습니다.
-
-```
-
-
-
-#### 4.2.2 Mapper 책임 분리
-
-```java
-
-민감정보 삭제하였습니다.
-
-```
-
-
-
-### 4.3 Mapper XML 파일 구조
-
-
-
-#### 4.3.1 XML 파일 위치 및 네이밍
-
-```
-
-src/main/resources/mapper/
-
-├── admin/
-
-│   ├── AdminUserMapper.xml
-
-│   └── AdminRoleMapper.xml
-
-...
-
-```
-
-
-
-#### 4.3.2 XML 파일 기본 구조
-
-```xml
-
-<!-- ✅ 도메인별 XML Mapper 구조 -->
-
-<?xml version="1.0" encoding="UTF-8"?>
-
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
-
-    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<mapper namespace="com.poc.backend.domain.{domain}.mapper.{Table}Mapper">
-
-    
-
-    <!-- Result Map 정의 -->
-
-    <resultMap id="{table}ResultMap" type="com.poc.backend.domain.{domain}.entity.{Table}">
-
-        <id property="id" column="id"/>
-
-        <!-- 필드 매핑 -->
-
-    </resultMap>
-
-    
-
-    <!-- 공통 SQL 조각 -->
-
-    <sql id="selectColumns">
-
-        id, column1, column2, created_at, updated_at
-
-    </sql>
-
-    
-
-    <sql id="whereConditions">
-
-        <where>
-
-            <if test="id != null">AND id = #{id}</if>
-
-            <if test="status != null">AND status = #{status}</if>
-
-        </where>
-
-    </sql>
-
-    
-
-    <!-- 기본 CRUD 쿼리 -->
-
-    <select id="findById" resultMap="{table}ResultMap">
-
-        SELECT <include refid="selectColumns"/>
-
-        FROM {table_name}
-
-        WHERE id = #{id}
-
-    </select>
-
-    
-
-    <!-- 나머지 쿼리들... -->
-
-    
-
-</mapper>
-
-```
-
-
-
-
-## 5. 구현 예시
-
-
-
-민감정보라 삭제하였습니다.
-
-
-
-
-## 6. 체크리스트
-
-
-
-### 6.1 도메인 구조 체크리스트
-
-- [ ] 정의된 14개 도메인에 따른 패키지 구조 준수
-
-- [ ] 도메인별 약어 (AD, AC, FM 등) 일관성 있게 사용
-
-- [ ] 도메인 경계 명확히 정의
-
-- [ ] 도메인별 책임 분리 적절히 구현
-
-
-
-### 6.2 패키지 구조 체크리스트
-
-- [ ] com.poc.backend.domain.{domain} 패키지 구조 준수
-
-- [ ] controller, service, mapper, entity, dto 패키지 분리
-
-- [ ] common 패키지를 통한 공통 기능 관리
-
-- [ ] 도메인별 세부 패키지 구조 일관성 유지
-
-
-
-### 6.3 Cross-Domain Access 체크리스트
-
-- [ ] 다른 도메인 Mapper 직접 접근 금지
-
-- [ ] Service 계층을 통한 도메인 간 통신
-
-- [ ] 순환 의존성 방지
-
-- [ ] 허용된 의존성 관계만 사용
-
-- [ ] 이벤트 기반 통신 활용 고려
-
-
-
-### 6.4 Mapper 생성 체크리스트
-
-- [ ] 테이블별 별도 Mapper 인터페이스 생성
-
-- [ ] 도메인별 mapper 패키지 구조 준수
-
-- [ ] 책임별 Mapper 분리 (기본, 검색, 배치, 통계)
-
-- [ ] XML 파일과 인터페이스 네이밍 일관성
-
-- [ ] One-to-One 테이블-Mapper 매핑 원칙 준수
-
-
-
-### 6.5 구현 품질 체크리스트
-
-- [ ] 명확한 네이밍 컨벤션 적용
-
-- [ ] 적절한 어노테이션 사용
-
-- [ ] 예외 처리 및 검증 로직 포함
-
-- [ ] 트랜잭션 경계 적절히 설정
-
-- [ ] 성능 고려사항 반영 (배치, 페이징 등)
-
-- [ ] 정의된 14개 도메인에 따른 패키지 구조 준수
-
-- [ ] 도메인별 약어 (AD, AC, FM 등) 일관성 있게 사용
-
-- [ ] 도메인 경계 명확히 정의
-
-- [ ] 도메인별 책임 분리 적절히 구현
-
-
-
-### 6.2 패키지 구조 체크리스트
-
-- [ ] com.poc.backend.domain.{domain} 패키지 구조 준수
-
-- [ ] controller, service, mapper, entity, dto 패키지 분리
-
-- [ ] common 패키지를 통한 공통 기능 관리
-
-- [ ] 도메인별 세부 패키지 구조 일관성 유지
-
-
-
-### 6.3 Cross-Domain Access 체크리스트
-
-- [ ] 다른 도메인 Mapper 직접 접근 금지
-
-- [ ] Service 계층을 통한 도메인 간 통신
-
-- [ ] 순환 의존성 방지
-
-- [ ] 허용된 의존성 관계만 사용
-
-- [ ] 이벤트 기반 통신 활용 고려
-
-
-
-### 6.4 Mapper 생성 체크리스트
-
-- [ ] 테이블별 별도 Mapper 인터페이스 생성
-
-- [ ] 도메인별 mapper 패키지 구조 준수
-
-- [ ] 책임별 Mapper 분리 (기본, 검색, 배치, 통계)
-
-- [ ] XML 파일과 인터페이스 네이밍 일관성
-
-- [ ] One-to-One 테이블-Mapper 매핑 원칙 준수
-
-
-
-### 6.5 구현 품질 체크리스트
-
-- [ ] 명확한 네이밍 컨벤션 적용
-
-- [ ] 적절한 어노테이션 사용
-
-- [ ] 예외 처리 및 검증 로직 포함
-
-- [ ] 트랜잭션 경계 적절히 설정
-
-- [ ] 성능 고려사항 반영 (배치, 페이징 등)
+---
+
+## 체크리스트
+
+- [ ] 모든 도메인 패키지가 `com.backend.domain.{도메인명}/` 형태로 존재한다
+- [ ] 각 도메인에 `controller/`, `service/`, `repository/`, `entity/`, `dto/`, `exception/` 이 있다
+- [ ] `event/` 패키지가 있고 연쇄 부작용을 이벤트로 전달한다
+- [ ] 타 도메인 repository 를 직접 주입하는 코드가 없다 (`grep -r "import com.backend.domain.*.repository" --include="*.java"` 로 교차 확인)
+- [ ] 공유 DTO / 타입이 `com.backend.global.common/` 에만 위치한다
+- [ ] 모든 엔티티가 `BaseEntity` 를 상속한다
+- [ ] 모든 엔티티 PK 가 ULID 문자열이다 (`@GeneratedValue` 금지 확인)
+- [ ] Soft-delete 대상 엔티티에 `@SQLRestriction("deleted_at IS NULL")` 이 적용된다
+- [ ] 도메인 예외 클래스가 `exception/` 하위에 위치하고 `BusinessException` 을 상속한다
+- [ ] Controller 파일과 Swagger Api 인터페이스 파일이 분리되어 있다

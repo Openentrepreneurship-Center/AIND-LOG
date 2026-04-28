@@ -1,46 +1,42 @@
-# code-generate-guidelines.md — 하 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
+# code-generate-guidelines.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
-## 개요
+---
 
-이 문서는 decapet-official/backend에서 코드를 추가할 때 하 등급 작업자가 따라야 할 최소 규칙을 정의한다.
-"단순 추가만 허용"이 핵심이다. 기존 시그니처와 파일 구조를 건드리지 않는다.
+## 1. 개요
 
-## 변경/완화 사항
+이 문서는 코드 생성 도구가 `com.backend` 프로젝트에서 코드를 생성·수정할 때
+반드시 지켜야 하는 최소 규칙을 정의한다.
 
-- 상 등급의 Unified Diff 출력 원칙 → 하 등급은 적용하지 않음
-- 상 등급의 `[EXISTING]` / `[TO_BE_CREATED]` / `[INTERFACE]` 의존성 분류 → 하 등급은 미적용
-- MyBatis XML Mapper 규칙 → 해당 없음
+---
 
-## 이 등급에서 강제하는 것
+## 2. 핵심 원칙
 
-**must**
-- 기존 파일을 삭제·리네임·이동하지 않는다.
-- 기존 public 메서드의 이름, 파라미터 타입·순서, 반환 타입을 변경하지 않는다.
-- 신규 기능은 신규 파일 또는 기존 파일 끝에 신규 메서드 추가로만 구현한다.
+### 2.1 기존 파일 재생성 금지 (must)
+- 기존 파일을 삭제·이동·리네임하지 않는다.
+- 기존 파일을 통째로 재생성하여 덮어쓰지 않는다.
+- 새 기능은 기존 파일에 메서드·라인을 추가하거나 신규 파일을 생성하는 방식으로만 구현한다.
 
-**should**
-- JPA Entity에 필드를 추가할 때 Flyway 마이그레이션 스크립트를 함께 작성한다.
-- 기존 테스트가 깨지지 않도록 한다.
-
-## 예시 코드
-
-신규 메서드 추가 (기존 메서드 변경 금지):
+### 2.2 public 메서드 시그니처 보존 (must)
+- 기존 `public` 메서드의 이름, 파라미터, 반환 타입을 변경하지 않는다.
+- 기존 `public` 메서드를 삭제하지 않는다.
 
 ```java
-// 기존 메서드 — 변경 금지
-public UserResponse getUser(String userId) { ... }
-
-// 신규 메서드 — 기존 파일 끝에 추가
-public List<UserResponse> getUsersByStatus(String status) {
-    // 구현
+// 예시: 기존 메서드 유지하며 신규 메서드 추가
+// decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:51-54
+@Transactional(readOnly = true)
+public UserResponse getUser(String userId) {
+    User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+    return userResponseMapper.toResponse(user);
 }
+// ↑ 이 메서드 시그니처는 변경하지 않는다.
 ```
 
-## 체크리스트
+---
 
-- [ ] 기존 파일을 삭제·리네임·이동하지 않았는가?
-- [ ] 기존 public 메서드 시그니처를 변경하지 않았는가?
-- [ ] 신규 기능이 신규 파일 또는 신규 메서드 추가로만 구현되었는가?
-- [ ] 기존 테스트가 여전히 통과하는가?
+## 3. 체크리스트
+
+- [ ] 기존 파일을 삭제·이동·리네임하지 않았는가
+- [ ] 기존 파일을 통째로 재생성하지 않았는가
+- [ ] 기존 `public` 메서드 시그니처가 유지되는가
+- [ ] 기존 `@Transactional` 경계가 변경되지 않았는가

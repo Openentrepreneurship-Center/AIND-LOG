@@ -1,552 +1,207 @@
-#springboot-standard.md
-## 1. Code Organization and Structure
- 
-### 1.1 Directory Structure
- 
-Adopt a layered architecture to separate concerns and improve maintainability. A recommended directory structure is:
- 
- 
-src/
- ├── main/
- │   ├── java/
- │   │   └── com/example/app/
- │   │       ├── Application.java (Main entry point)
- │   │       ├── config/          (Configuration classes)
- │   │       ├── controller/      (REST controllers)
- │   │       ├── service/         (Business logic services)
- │   │       ├── mapper/          (MyBatis mapper interfaces)
- │   │       ├── model/           (Data transfer objects (DTOs), entities)
- │   │       ├── exception/       (Custom exceptions)
- │   │       ├── util/            (Utility classes)
- │   │       └── security/        (Security-related classes)
- │   └── resources/
- │       ├── application.properties/application.yml (Application configuration)
- │       ├── mapper/              (MyBatis XML mapper files)
- │       ├── static/              (Static resources like HTML, CSS, JavaScript)
- │       └── templates/           (View templates, e.g., Thymeleaf)
- └── test/
-     ├── java/
-     │   └── com/example/app/
-     │       ├── controller/      (Controller tests)
-     │       ├── service/         (Service tests)
-     │       └── mapper/          (Mapper tests)
-     └── resources/
-         ├── application.properties/application.yml (Test-specific configuration)
-         └── mapper/              (Test MyBatis XML mapper files)
- 
- 
-*   **Root Package:** Choose a meaningful root package name (e.g., `com.yourcompany.appname`).
-*   **Modularization:** For larger applications, consider breaking down the application into modules (e.g., using Maven or Gradle modules) based on business domains or features.
- 
-### 1.2 File Naming Conventions
- 
-*   **Classes:** Use PascalCase (e.g., `UserController`, `ProductService`).
-*   **Interfaces:** Use PascalCase, often prefixed with `I` (e.g., `ProductRepository`, `IOrderService`). Consider omitting the `I` prefix if it doesn't add value.
-*   **Methods:** Use camelCase (e.g., `getUserById`, `calculateTotal`).
-*   **Variables:** Use camelCase (e.g., `userName`, `productPrice`).
-*   **Constants:** Use UPPER_SNAKE_CASE (e.g., `MAX_RETRIES`, `DEFAULT_TIMEOUT`).
-*   **Configuration Files:** Use lowercase with hyphens (e.g., `application.properties`, `bootstrap.yml`).
- 
-### 1.3 Module Organization
- 
-For larger projects, break down the application into modules. Each module should represent a distinct business domain or feature.
- 
-*   **Maven/Gradle Modules:** Use Maven or Gradle to manage module dependencies and build processes.
-*   **Clear Boundaries:** Define clear interfaces between modules to promote loose coupling.
-*   **Independent Deployments:** Design modules to be independently deployable, if possible.
- 
-### 1.4 Component Architecture
- 
-*   **Controllers:** Handle incoming requests and delegate to services. Keep controllers thin.
-*   **Services:** Implement business logic. Services should be transactional.
-*   **Mappers:** Provide data access abstraction using MyBatis mapper interfaces and XML files.
-*   **Models:** Represent data structures. Use DTOs for transferring data between layers and entities for persistence.
- 
-### 1.5 Code Splitting Strategies
- 
-*   **Feature-Based Splitting:** Group code related to a specific feature into its own package or module.
-*   **Layer-Based Splitting:** Separate code based on layers (e.g., presentation, business logic, data access).
-*   **Horizontal vs. Vertical Slicing:** Consider horizontal slicing (grouping similar functionalities across features) or vertical slicing (grouping all functionalities for a specific feature) based on project needs.
- 
-## 2. Common Patterns and Anti-Patterns
- 
-### 2.1 Design Patterns Specific to Spring Boot
- 
-*   **Dependency Injection (DI):** Use constructor injection for required dependencies and setter injection for optional dependencies.
-*   **Inversion of Control (IoC):** Let the Spring container manage the lifecycle and dependencies of your beans.
-*   **Aspect-Oriented Programming (AOP):** Use AOP for cross-cutting concerns like logging, security, and transaction management.
-*   **Mapper Pattern:** Use MyBatis mapper interfaces and XML files for simplified data access.
-*   **Service Layer Pattern:** Decouple controllers from business logic by introducing a service layer.
-*   **Template Method Pattern:** Use `JdbcTemplate` or `RestTemplate` for consistent data access or external API calls.
-*   **Factory Pattern:** Use `@Configuration` classes and `@Bean` methods to define and configure beans.
- 
-### 2.2 Recommended Approaches for Common Tasks
- 
-*   **Configuration:** Use `application.properties` or `application.yml` for externalized configuration. Use `@ConfigurationProperties` to bind configuration properties to a class.
-*   **Logging:** Use SLF4J for logging abstraction and a suitable logging implementation (e.g., Logback or Log4j2).
-*   **Exception Handling:** Use `@ControllerAdvice` to handle exceptions globally. Create custom exception classes for specific error scenarios.
-*   **Validation:** Use JSR-303 Bean Validation for validating request parameters and request bodies. Use `@Validated` annotation with appropriate groups.
-*   **Data Transfer:** Use DTOs to transfer data between layers to avoid exposing internal data structures.
-*   **Asynchronous Operations:** Use `@Async` annotation and `TaskExecutor` to perform asynchronous operations.
-*   **Caching:** Use Spring's caching abstraction with implementations like Ehcache, Caffeine, or Redis.
-*   **Scheduling:** Use `@Scheduled` annotation to schedule tasks.
-*   **Transaction Management:** Use `@Transactional` annotation for managing transactions.
-*   **MyBatis Configuration:** Use MyBatis configuration for SQL mapping and database operations.
- 
-### 2.2.1 MyBatis Best Practices
- 
-```java
-// ✅ Mapper 인터페이스 정의
-@Mapper
-public interface CardMapper {
-     
-    // 기본 CRUD 작업
-    Card findById(Long id);
-    List<Card> findAll();
-    int insert(Card card);
-    int update(Card card);
-    int deleteById(Long id);
-     
-    // 복잡한 쿼리
-    List<Card> findByStatus(String status);
-    List<Card> findByUserAndStatus(Long userId, String status);
-     
-    // 배치 작업
-    int batchInsert(List<Card> cards);
-    int batchUpdate(List<Card> cards);
-}
- 
-// ✅ Service 계층에서 Mapper 사용
-@Service
-@Transactional
-public class CardService {
-     
-    private final CardMapper cardMapper;
-     
-    public CardService(CardMapper cardMapper) {
-        this.cardMapper = cardMapper;
-    }
-     
-    public Card getCardById(Long id) {
-        return cardMapper.findById(id);
-    }
-     
-    public List<Card> getCardsByStatus(String status) {
-        return cardMapper.findByStatus(status);
-    }
-     
-    public void createCard(Card card) {
-        cardMapper.insert(card);
-    }
-     
-    public void updateCard(Card card) {
-        int updatedRows = cardMapper.update(card);
-        if (updatedRows == 0) {
-            throw new CardNotFoundException("Card not found: " + card.getId());
-        }
-    }
-}
-```
- 
-```xml
-<!-- ✅ MyBatis XML Mapper 파일 -->
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.example.app.mapper.CardMapper">
-     
-    <!-- 결과 매핑 -->
-    <resultMap id="cardResultMap" type="Card">
-        <id property="id" column="id"/>
-        <result property="cardNumber" column="card_number"/>
-        <result property="balance" column="balance"/>
-        <result property="status" column="status"/>
-        <result property="createdAt" column="created_at"/>
-        <result property="updatedAt" column="updated_at"/>
-    </resultMap>
-     
-    <!-- 기본 쿼리 -->
-    <select id="findById" resultMap="cardResultMap">
-        SELECT id, card_number, balance, status, created_at, updated_at
-        FROM cards
-        WHERE id = #{id}
-    </select>
-     
-    <select id="findAll" resultMap="cardResultMap">
-        SELECT id, card_number, balance, status, created_at, updated_at
-        FROM cards
-        ORDER BY created_at DESC
-    </select>
-     
-    <!-- 동적 쿼리 -->
-    <select id="findByStatus" resultMap="cardResultMap">
-        SELECT id, card_number, balance, status, created_at, updated_at
-        FROM cards
-        <where>
-            <if test="status != null and status != ''">
-                AND status = #{status}
-            </if>
-        </where>
-        ORDER BY created_at DESC
-    </select>
-     
-    <!-- 복합 조건 쿼리 -->
-    <select id="findByUserAndStatus" resultMap="cardResultMap">
-        SELECT c.id, c.card_number, c.balance, c.status, c.created_at, c.updated_at
-        FROM cards c
-        INNER JOIN users u ON c.user_id = u.id
-        WHERE u.id = #{userId}
-        <if test="status != null and status != ''">
-            AND c.status = #{status}
-        </if>
-        ORDER BY c.created_at DESC
-    </select>
-     
-    <!-- 삽입 -->
-    <insert id="insert" parameterType="Card" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO cards (card_number, balance, status, user_id, created_at, updated_at)
-        VALUES (#{cardNumber}, #{balance}, #{status}, #{userId}, NOW(), NOW())
-    </insert>
-     
-    <!-- 업데이트 -->
-    <update id="update" parameterType="Card">
-        UPDATE cards
-        SET balance = #{balance},
-            status = #{status},
-            updated_at = NOW()
-        WHERE id = #{id}
-    </update>
-     
-    <!-- 배치 삽입 -->
-    <insert id="batchInsert" parameterType="java.util.List">
-        INSERT INTO cards (card_number, balance, status, user_id, created_at, updated_at)
-        VALUES
-        <foreach collection="list" item="card" separator=",">
-            (#{card.cardNumber}, #{card.balance}, #{card.status}, #{card.userId}, NOW(), NOW())
-        </foreach>
-    </insert>
-     
-</mapper>
-```
- 
-### 2.3 Anti-Patterns and Code Smells to Avoid
- 
-*   **God Class:** A class that does too much. Break it down into smaller, more focused classes.
-*   **Long Method:** A method that is too long and complex. Extract smaller methods.
-*   **Feature Envy:** A method that accesses data from another object more than its own. Move the method to the other object.
-*   **Data Clumps:** Groups of data that frequently appear together. Create a new class to encapsulate the data clump.
-*   **Primitive Obsession:** Using primitive data types instead of creating meaningful domain objects.
-*   **Shotgun Surgery:** Making small changes in many different places. Refactor the code to centralize the changes.
-*   **Spaghetti Code:** Code that is difficult to understand and maintain due to its tangled structure.
-*   **Copy-Paste Programming:** Duplicating code instead of reusing existing code. Create reusable components or methods.
-*   **Field Injection:** Use constructor injection instead for required dependencies.
-*   **Tight Coupling:** Classes that are highly dependent on each other. Decouple the classes using interfaces or abstract classes.
-*   **Ignoring Exceptions:** Catching exceptions but not handling them properly. Log the exception and take appropriate action.
-*   **Over-Engineering:** Making the code too complex for the problem it solves. Keep it simple and only add complexity when needed.
- 
-### 2.3.1 MyBatis Anti-Patterns
- 
-*   **N+1 Query Problem:** Avoid executing multiple queries in loops. Use JOIN or batch queries instead.
-*   **Raw SQL in Java Code:** Don't write raw SQL in Java code. Use MyBatis XML mappers.
-*   **Overly Complex Dynamic SQL:** Keep dynamic SQL simple and readable.
-*   **Not Using Result Maps:** Always use result maps for complex object mapping.
-*   **Ignoring Batch Operations:** Use batch operations for multiple inserts/updates.
-*   **Not Using Type Handlers:** Create custom type handlers for complex data types.
-*   **SQL Injection Vulnerabilities:** Always use parameterized queries, never string concatenation.
- 
-```java
-// ❌ 나쁜 예시 - N+1 문제
-@Service
-public class BadCardService {
-    public List<CardWithTransactions> getCardsWithTransactions() {
-        List<Card> cards = cardMapper.findAll();
-        for (Card card : cards) {
-            // 각 카드마다 별도 쿼리 실행 (N+1 문제)
-            List<Transaction> transactions = transactionMapper.findByCardId(card.getId());
-            card.setTransactions(transactions);
-        }
-        return cards;
-    }
-}
- 
-// ✅ 좋은 예시 - JOIN 사용
-@Service
-public class GoodCardService {
-    public List<CardWithTransactions> getCardsWithTransactions() {
-        // 한 번의 쿼리로 모든 데이터 조회
-        return cardMapper.findAllWithTransactions();
-    }
-}
-```
- 
-```xml
-<!-- ❌ 나쁜 예시 - 복잡한 동적 SQL -->
-<select id="findCards" resultType="Card">
-    SELECT * FROM cards
-    <where>
-        <if test="cardNumber != null">AND card_number = #{cardNumber}</if>
-        <if test="status != null">AND status = #{status}</if>
-        <if test="minBalance != null">AND balance >= #{minBalance}</if>
-        <if test="maxBalance != null">AND balance <= #{maxBalance}</if>
-        <if test="userId != null">AND user_id = #{userId}</if>
-        <if test="cardType != null">AND card_type = #{cardType}</if>
-        <if test="startDate != null">AND created_at >= #{startDate}</if>
-        <if test="endDate != null">AND created_at <= #{endDate}</if>
-        <if test="isActive != null">
-            <choose>
-                <when test="isActive">AND status = 'ACTIVE'</when>
-                <otherwise>AND status != 'ACTIVE'</otherwise>
-            </choose>
-        </if>
-    </where>
-    <choose>
-        <when test="sortBy == 'balance'">ORDER BY balance</when>
-        <when test="sortBy == 'createdAt'">ORDER BY created_at</when>
-        <otherwise>ORDER BY id</otherwise>
-    </choose>
-    <if test="sortOrder == 'desc'">DESC</if>
-</select>
- 
-<!-- ✅ 좋은 예시 - 단순하고 명확한 쿼리 -->
-<select id="findCardsByStatus" resultType="Card">
-    SELECT id, card_number, balance, status, created_at
-    FROM cards
-    WHERE status = #{status}
-    ORDER BY created_at DESC
-</select>
- 
-<select id="findCardsByUser" resultType="Card">
-    SELECT id, card_number, balance, status, created_at
-    FROM cards
-    WHERE user_id = #{userId}
-    ORDER BY created_at DESC
-</select>
-```
- 
-### 2.4 State Management Best Practices
- 
-*   **Stateless Services:** Design services to be stateless whenever possible. This improves scalability and testability.
-*   **Session Management:** Use Spring Session to manage user sessions in a distributed environment. Store session data in a persistent store like Redis or a database.
-*   **Caching:** Use caching to store frequently accessed data. Choose a suitable caching strategy (e.g., LRU, FIFO).
-*   **Database:** Use a relational database or a NoSQL database to persist data.
-*   **Distributed Transactions:** Use distributed transaction management techniques like two-phase commit (2PC) or Saga pattern for transactions spanning multiple services.
- 
-### 2.5 Error Handling Patterns
- 
-*   **Global Exception Handling:** Use `@ControllerAdvice` and `@ExceptionHandler` to handle exceptions globally.
-*   **Custom Exceptions:** Create custom exception classes for specific error scenarios.
-*   **Logging:** Log exceptions with sufficient context information (e.g., request parameters, user ID).
-*   **Error Responses:** Return meaningful error responses with appropriate HTTP status codes and error messages.
-*   **Retry Mechanism:** Implement a retry mechanism for transient errors.
-*   **Circuit Breaker:** Use a circuit breaker pattern to prevent cascading failures.
-*   **Dead Letter Queue:** Use a dead letter queue to handle messages that cannot be processed.
- 
-## 3. Performance Considerations
-
-### 3.1 Optimization Techniques
- 
-*   **Database Query Optimization:** Use indexes, optimize MyBatis queries, and avoid N+1 queries.
-*   **MyBatis Query Optimization:** Use MyBatis caching, batch operations, and optimized SQL mapping.
-*   **Caching:** Use caching to reduce database load and improve response times.
-*   **Connection Pooling:** Use connection pooling to reuse database connections.
-*   **Asynchronous Operations:** Use asynchronous operations to offload long-running tasks from the main thread.
-*   **Load Balancing:** Use load balancing to distribute traffic across multiple instances.
-*   **Gzip Compression:** Use Gzip compression to reduce the size of HTTP responses.
-*   **Code Profiling:** Use profiling tools to identify performance bottlenecks.
- 
-### 3.2 Memory Management
- 
-*   **Object Pooling:** Use object pooling to reuse objects and reduce object creation overhead.
-*   **Avoid Memory Leaks:** Ensure that objects are properly garbage collected.
-*   **Use Appropriate Data Structures:** Choose data structures that are efficient for the operations you perform.
-*   **Optimize Collections:** Use appropriate collection types (e.g., `ArrayList` vs. `LinkedList`) based on usage patterns.
-*   **Lazy Loading:** Use lazy loading to load data only when it is needed.
- 
-### 3.3 Rendering Optimization
- 
-*   **Template Caching:** Cache frequently used templates to reduce rendering time.
-*   **Minimize DOM Manipulations:** Minimize DOM manipulations in the view layer.
-*   **Use CDN:** Use a Content Delivery Network (CDN) to serve static resources.
- 
-### 3.4 Bundle Size Optimization
- 
-*   **Code Splitting:** Split the code into smaller bundles to reduce the initial load time.
-*   **Tree Shaking:** Remove unused code from the bundles.
-*   **Minification:** Minify the code to reduce the bundle size.
-*   **Compression:** Compress the bundles to reduce the transfer size.
- 
-### 3.5 Lazy Loading Strategies
- 
-*   **Lazy Initialization:** Initialize objects only when they are first accessed.
-*   **Virtual Proxy:** Use a virtual proxy to delay the loading of an object until it is needed.
-*   **MyBatis Lazy Loading:** Use MyBatis lazy loading features for association and collection mappings.
- 
-## 4. Security Best Practices
- 
-### 4.1 Common Vulnerabilities and How to Prevent Them
- 
-*   **SQL Injection:** Use MyBatis parameterized queries to prevent SQL injection attacks.
-*   **Cross-Site Scripting (XSS):** Sanitize user input and use output encoding to prevent XSS attacks.
-*   **Cross-Site Request Forgery (CSRF):** Use CSRF tokens to prevent CSRF attacks.
-*   **Authentication and Authorization:** Implement strong authentication and authorization mechanisms.
-*   **Session Management:** Secure session management to prevent session hijacking.
-*   **Denial of Service (DoS):** Implement rate limiting and other measures to prevent DoS attacks.
-*   **Insecure Direct Object References (IDOR):** Implement access control checks to prevent unauthorized access to objects.
-*   **Security Misconfiguration:** Properly configure security settings to prevent misconfigurations.
-*   **Using Components with Known Vulnerabilities:** Keep dependencies up-to-date to address known vulnerabilities.
-*   **Insufficient Logging and Monitoring:** Implement sufficient logging and monitoring to detect and respond to security incidents.
- 
-### 4.2 Input Validation
- 
-*   **Whitelisting:** Validate input against a whitelist of allowed values.
-*   **Regular Expressions:** Use regular expressions to validate input format.
-*   **Data Type Validation:** Validate that input is of the expected data type.
-*   **Length Validation:** Validate that input is within the allowed length limits.
-*   **Encoding Validation:** Validate that input is properly encoded.
- 
-### 4.3 Authentication and Authorization Patterns
- 
-*   **OAuth 2.0:** Use OAuth 2.0 for delegated authorization.
-*   **JWT (JSON Web Token):** Use JWT for stateless authentication.
-*   **Role-Based Access Control (RBAC):** Implement RBAC to control access to resources based on user roles.
-*   **Attribute-Based Access Control (ABAC):** Implement ABAC for fine-grained access control based on attributes.
-*   **Spring Security:** Leverage Spring Security for authentication and authorization.
- 
-### 4.4 Data Protection Strategies
- 
-*   **Encryption:** Encrypt sensitive data at rest and in transit.
-*   **Hashing:** Hash passwords and other sensitive data using strong hashing algorithms.
-*   **Salting:** Use salting to protect against rainbow table attacks.
-*   **Data Masking:** Mask sensitive data when it is displayed or used for non-production purposes.
-*   **Tokenization:** Tokenize sensitive data to replace it with non-sensitive tokens.
- 
-### 4.5 Secure API Communication
- 
-*   **HTTPS:** Use HTTPS for secure communication.
-*   **TLS/SSL:** Use TLS/SSL to encrypt data in transit.
-*   **API Keys:** Use API keys to authenticate API clients.
-*   **Rate Limiting:** Implement rate limiting to prevent abuse.
-*   **Input Validation:** Validate all input to prevent injection attacks.
-*   **Output Encoding:** Encode output to prevent XSS attacks.
-## 5. Testing Approaches
- 
-### 5.1 Unit Testing Strategies
- 
-*   **Test-Driven Development (TDD):** Write tests before writing the code.
-*   **Mocking:** Use mocking frameworks (e.g., Mockito) to isolate the unit under test.
-*   **Assertion Libraries:** Use assertion libraries (e.g., AssertJ) for expressive assertions.
-*   **Code Coverage:** Aim for high code coverage.
-*   **Test Naming:** Use clear and descriptive test names.
-*   **Arrange-Act-Assert:** Structure tests using the Arrange-Act-Assert pattern.
- 
-### 5.2 Integration Testing
- 
-*   **Test Slices:** Use Spring Boot's test slices (e.g., `@WebMvcTest`, `@MybatisTest`) to test specific parts of the application.
-*   **TestContainers:** Use Testcontainers to run integration tests with real dependencies (e.g., databases, message queues).
-*   **Spring Test:** Use Spring's testing support for integration tests.
-*   **Database Testing:** Use an in-memory database or a test database for MyBatis integration tests.
- 
-### 5.3 End-to-End Testing
- 
-*   **Selenium:** Use Selenium to automate browser-based end-to-end tests.
-*   **REST Assured:** Use REST Assured to test REST APIs.
-*   **Headless Browser:** Use a headless browser for faster end-to-end tests.
- 
-### 5.4 Test Organization
- 
-*   **Test Packages:** Create separate packages for unit tests, integration tests, and end-to-end tests.
-*   **Test Classes:** Create test classes that correspond to the classes under test.
-*   **Test Suites:** Use test suites to group related tests.
- 
-### 5.5 Mocking and Stubbing
- 
-*   **Mockito:** Use Mockito for mocking dependencies.
-*   **Spring MockMvc:** Use Spring MockMvc for testing controllers.
-*   **WireMock:** Use WireMock for stubbing external services.
-*   **Avoid Over-Mocking:** Mock only the dependencies that are necessary to isolate the unit under test.
- 
-## 6. Common Pitfalls and Gotchas
- 
-### 6.1 Frequent Mistakes Developers Make
- 
-*   **Not Understanding Spring Boot Concepts:** Jumping into Spring Boot without a solid understanding of Spring and Dependency Injection.
-*   **Overusing `@Autowired`:** Using `@Autowired` for field injection instead of constructor injection.
-*   **Not Using Spring Boot Starters:** Manually adding dependencies instead of using Spring Boot Starters.
-*   **Not Externalizing Configuration:** Hardcoding configuration values instead of using `application.properties` or `application.yml`.
-*   **Not Understanding MyBatis:** Not properly understanding MyBatis mapper interfaces and XML mapping.
-*   **Not Handling Exceptions Properly:** Ignoring exceptions or not providing meaningful error responses.
-*   **Not Writing Tests:** Neglecting to write unit tests and integration tests.
-*   **Using `System.out.println` for Logging:** Using `System.out.println` instead of a proper logging framework.
-*   **Not Securing the Application:** Failing to implement proper security measures.
-*   **Not Monitoring the Application:** Not setting up proper monitoring and alerting.
- 
-### 6.2 Edge Cases to Be Aware Of
- 
-*   **Null Values:** Handle null values gracefully.
-*   **Empty Collections:** Handle empty collections properly.
-*   **Large Datasets:** Optimize performance for large datasets.
-*   **Concurrency Issues:** Handle concurrency issues properly.
-*   **Network Errors:** Handle network errors gracefully.
- 
-### 6.3 Version-Specific Issues
- 
-*   **Spring Boot Version Compatibility:** Ensure that dependencies are compatible with the Spring Boot version.
-*   **Java Version Compatibility:** Ensure that the Java version is compatible with the Spring Boot version.
-*   **Third-Party Library Compatibility:** Ensure that third-party libraries are compatible with the Spring Boot version.
- 
-### 6.4 Compatibility Concerns
- 
-*   **Browser Compatibility:** Ensure that the application is compatible with different browsers.
-*   **Operating System Compatibility:** Ensure that the application is compatible with different operating systems.
-*   **Device Compatibility:** Ensure that the application is compatible with different devices.
- 
-### 6.5 Debugging Strategies
- 
-*   **Logging:** Use logging to trace the execution flow and identify errors.
-*   **Debuggers:** Use debuggers to step through the code and inspect variables.
-*   **Profiling Tools:** Use profiling tools to identify performance bottlenecks.
-*   **Remote Debugging:** Use remote debugging to debug applications running on remote servers.
-*   **Heap Dumps:** Use heap dumps to analyze memory usage.
-*   **Thread Dumps:** Use thread dumps to analyze thread activity.
- 
-## 7. Tooling and Environment
- 
-### 7.1 Recommended Development Tools
- 
-*   **IDE:** IntelliJ IDEA, Eclipse, or Visual Studio Code.
-*   **Build Tool:** Maven or Gradle.
-*   **Version Control:** Git.
-*   **Database Client:** DBeaver or SQL Developer.
-*   **API Testing Tool:** Postman or Insomnia.
- 
-### 7.2 Build Configuration
- 
-*   **Maven:** Use `pom.xml` to define dependencies and build configuration.
-*   **Gradle:** Use `build.gradle` to define dependencies and build configuration.
-*   **Spring Boot Maven Plugin:** Use the Spring Boot Maven Plugin for packaging and running the application.
-*   **Spring Boot Gradle Plugin:** Use the Spring Boot Gradle Plugin for packaging and running the application.
- 
- 
-### 7.3 Linting and Formatting
- 
-*   **Checkstyle:** Use Checkstyle to enforce coding style guidelines.
-*   **PMD:** Use PMD to find potential code defects.
-*   **FindBugs/SpotBugs:** Use FindBugs/SpotBugs to find potential bugs.
-*   **EditorConfig:** Use EditorConfig to maintain consistent coding styles across different editors.
-*   **IntelliJ IDEA Code Style:** Configure IntelliJ IDEA's code style settings to match the project's coding style.
- 
-### 7.4 Deployment Best Practices
- 
-*   **Containerization:** Use Docker to containerize the application.
-*   **Orchestration:** Use Kubernetes or Docker Swarm to orchestrate containers.
-*   **Cloud Deployment:** Deploy the application to a cloud platform (e.g., AWS, Azure, Google Cloud).
-*   **Configuration Management:** Use configuration management tools (e.g., Spring Cloud Config) to manage configuration in a distributed environment.
-*   **Monitoring:** Set up monitoring to track application performance and health.
-*   **Logging:** Aggregate logs to a central location for analysis.
- 
-### 7.5 CI/CD Integration
- 
-*   **Continuous Integration (CI):** Use a CI server (e.g., Jenkins, Travis CI, CircleCI) to automatically build and test the application.
-*   **Continuous Delivery (CD):** Use a CD pipeline to automatically deploy the application to production.
-*   **Automated Testing:** Automate unit tests, integration tests, and end-to-end tests.
-*   **Code Quality Checks:** Integrate code quality checks (e.g., Checkstyle, PMD, FindBugs/SpotBugs) into the CI pipeline.
+# springboot-standard.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
+
+---
+
+## 개요
+
+decapet-official/backend 는 레이어드 아키텍처(controller → service → repository) 기반의
+Spring Boot 4.0.1 / Java 17 / Gradle 프로젝트다.
+JPA + Spring Data 로 영속성을 처리하고, JWT 기반 stateless 인증, Bucket4j 레이트 리밋,
+springdoc OpenAPI 문서화, Testcontainers + Flyway 기반 통합 테스트를 표준으로 채택한다.
+이 문서는 신규 기능 추가 및 코드 리뷰 시 준수해야 할 기술 표준을 정의한다.
+
+---
+
+## 원칙
+
+1. 레이어드 아키텍처를 준수한다. controller 는 service 만, service 는 repository 만 호출한다. 레이어를 건너뛰는 호출 금지.
+2. 의존성 주입은 생성자 주입만 사용한다. `@Autowired` 필드 주입 및 setter 주입 금지.
+3. JPA 연관관계 기본 fetch 전략은 `LAZY` 다. `EAGER` 사용 시 반드시 팀 리뷰를 거친다.
+4. `@OneToMany` 는 성능 문제를 인지하고 신중히 사용한다. 불필요한 컬렉션 로딩을 피한다.
+5. 보안 설정은 `SecurityFilterChain` 빈 1개에서 완결한다. 분산 설정 금지.
+6. 모든 API 엔드포인트에 `@Operation` + `@Tag` 를 붙여 Swagger 문서를 유지한다.
+7. 통합 테스트는 `IntegrationTestBase` 를 상속하고 Testcontainers + Flyway 로 실제 DB 환경에서 검증한다.
+
+---
+
+## 강제 사항
+
+### must (애플리케이션 구조)
+
+- `@SpringBootApplication` 클래스는 프로젝트 전체에 1개만 존재해야 한다.
+- JPA Auditing 활성화(`@EnableJpaAuditing`)와 스케줄러 활성화(`@EnableScheduling`)는 진입점 클래스 또는 전용 설정 클래스에 명시해야 한다.
+- 모든 빈 의존성은 생성자 주입으로 선언해야 한다 (`@RequiredArgsConstructor` 또는 명시적 생성자).
+- 레이어드 아키텍처 규칙을 지켜야 한다. service 가 다른 service 를 호출하는 것은 허용하나, controller 가 repository 를 직접 주입하는 것은 금지.
+
+### must (JPA / 데이터)
+
+- 모든 `@ManyToOne`, `@OneToOne` 의 기본 fetch 전략은 `FetchType.LAZY` 이어야 한다.
+- `@OneToMany` 사용 시 해당 컬렉션이 실제로 필요한 컨텍스트인지 검토해야 한다. 단순 ID 조회가 가능하면 컬렉션 매핑 대신 쿼리로 처리한다.
+- 엔티티 PK 는 ULID 문자열이어야 한다 (`BaseEntity` 상속 강제).
+- Flyway 마이그레이션 스크립트로 스키마를 관리하며, `spring.jpa.hibernate.ddl-auto=validate` 또는 `none` 을 사용한다.
+
+### must (보안)
+
+- `SecurityFilterChain` 빈은 `com.backend.global.config.SecurityConfig` 에서 1개만 선언해야 한다.
+- CSRF 는 stateless 정책으로 비활성화해야 한다 (`AbstractHttpConfigurer::disable`).
+- 세션 생성 정책은 `SessionCreationPolicy.STATELESS` 이어야 한다.
+- JWT 필터 체인 순서를 지켜야 한다: `HttpsEnforcementFilter` → `JwtFilter` → `AccountValidationFilter` → `PermissionFilter`.
+- Bucket4j 를 사용하여 공개 엔드포인트 및 인증 엔드포인트에 레이트 리밋을 적용해야 한다. `ErrorCode.TOO_MANY_REQUESTS("G004")` 를 반환해야 한다.
+- `anyRequest().denyAll()` 을 마지막 규칙으로 두어 미매핑 경로를 기본 차단해야 한다.
+
+### must (API 문서)
+
+- 모든 컨트롤러에 `@Tag(name = "...")` 를 붙여야 한다.
+- 모든 공개 API 메서드에 `@Operation(summary = "...")` 를 붙여야 한다.
+- Swagger UI 경로(`/docs`, `/swagger-ui/**`, `/api-docs/**`)는 인증 없이 접근 가능해야 한다.
+
+### must (테스트)
+
+- 통합 테스트는 Testcontainers PostgreSQL + Flyway 를 사용하여 실제 DB 환경에서 수행해야 한다.
+- `IntegrationTestBase` 를 상속하여 컨테이너·Flyway 설정을 재사용해야 한다.
+- JaCoCo 커버리지 리포트를 생성해야 한다. `./gradlew test jacocoTestReport`.
+
+### should
+
+- 도메인 서비스 단위 테스트는 Mockito 로 repository 를 mock 하여 빠르게 실행한다.
+- `@Transactional(readOnly = true)` 를 조회 전용 service 메서드에 적용하여 flush 를 방지한다.
+- `@Transactional` 은 service 레이어에만 선언한다. controller 또는 repository 에 선언 금지.
+
+---
+
+## 예시 (decapet 인용)
+
+### build.gradle — 주요 의존성
+
+```groovy
+// decapet-official/backend/build.gradle
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+
+    // OpenAPI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // ULID
+    implementation 'com.github.f4b6a3:ulid-creator:5.2.3'
+
+    // Flyway
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    // Rate Limiting
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+
+    // Testcontainers
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4')
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
+}
+```
+
+### SecurityConfig — 필터 체인 1개, JWT 필터 위치
+
+```java
+// com.backend.global.config.SecurityConfig
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
+    private final AccountValidationFilter accountValidationFilter;
+    private final PermissionFilter permissionFilter;
+    private final HttpsEnforcementFilter httpsEnforcementFilter;
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/docs", "/swagger-ui/**", "/api-docs/**").permitAll()
+                .requestMatchers("/api/v1/auth/login").permitAll()
+                // ... 도메인별 권한 설정
+                .anyRequest().denyAll()   // 미매핑 경로 기본 차단
+            )
+            // 필터 순서: Https → Jwt → AccountValidation → Permission
+            .addFilterBefore(httpsEnforcementFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(accountValidationFilter, JwtFilter.class)
+            .addFilterAfter(permissionFilter, AccountValidationFilter.class);
+
+        return http.build();
+    }
+}
+```
+
+### 생성자 주입 패턴
+
+```java
+// com.backend.domain.pet.service.PetService (예시)
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class PetService {
+    private final PetRepository petRepository;
+    private final UserService userService;     // 타 도메인은 service 로만 참조
+
+    @Transactional
+    public void registerPet(PetRegisterInfo info) { ... }
+
+    public PetResponse getPet(String petId) { ... }
+}
+```
+
+### 빌드 및 실행 명령
+
+```bash
+# 빌드
+./gradlew build
+
+# 실행
+./gradlew bootRun
+
+# 테스트
+./gradlew test
+
+# 커버리지 리포트
+./gradlew test jacocoTestReport
+```
+
+---
+
+## 체크리스트
+
+- [ ] `@SpringBootApplication` 클래스가 프로젝트 전체에 1개다
+- [ ] `@EnableJpaAuditing` 이 설정 클래스 또는 진입점에 선언되어 있다
+- [ ] 모든 의존성 주입이 생성자 주입(`@RequiredArgsConstructor` 또는 명시적 생성자)으로 처리된다
+- [ ] `@Autowired` 필드 주입이 없다 (`grep -r "@Autowired" --include="*.java" src/main/` 빈 출력)
+- [ ] `SecurityFilterChain` 빈이 `SecurityConfig` 에 1개만 선언되어 있다
+- [ ] CSRF 비활성화, 세션 정책 `STATELESS` 가 설정되어 있다
+- [ ] JWT 필터 순서 (`HttpsEnforcementFilter` → `JwtFilter` → `AccountValidationFilter` → `PermissionFilter`)가 지켜진다
+- [ ] `anyRequest().denyAll()` 이 마지막 규칙이다
+- [ ] Bucket4j 레이트 리밋이 적용되어 있다
+- [ ] 모든 컨트롤러에 `@Tag`, 모든 API 메서드에 `@Operation` 이 있다
+- [ ] Swagger 경로가 `permitAll()` 로 열려 있다
+- [ ] JPA 연관관계 fetch 전략이 기본 `LAZY` 다 (`FetchType.EAGER` 잔존 여부 확인)
+- [ ] Flyway 마이그레이션 스크립트가 `resources/db/migration/` 에 관리된다
+- [ ] 통합 테스트가 Testcontainers + Flyway 기반 `IntegrationTestBase` 를 상속한다
+- [ ] `./gradlew test jacocoTestReport` 로 커버리지 리포트가 생성된다

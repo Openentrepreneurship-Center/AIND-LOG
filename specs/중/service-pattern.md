@@ -1,74 +1,81 @@
-# service-pattern.md — 중 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
-
----
+# service-pattern.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
 ## 1. 개요
 
-서비스 계층은 비즈니스 로직과 트랜잭션 경계를 담당한다.
-단일 구현체를 원칙으로 하며, 인터페이스 분리는 선택이다.
-클래스 레벨 `@Transactional`은 생략하고, 메서드 단위로 `@Transactional` 또는 `@Transactional(readOnly = true)`를 명시한다.
-커스텀 예외는 반드시 `BusinessException`을 상속하며, `ErrorCode` enum과 연동한다.
-repository 조회 실패는 `getByXxx()` default 메서드에서 자동으로 예외를 던지므로 서비스 내 중복 체크가 불필요하다.
+서비스 계층은 비즈니스 로직 진입점이다. 트랜잭션 관리, 엔티티 조회, 도메인 메서드 호출, 커스텀 예외 발생을 담당한다. 컨트롤러로부터 식별자와 DTO를 수신하고, Repository와 Domain Mapper를 통해 처리 결과를 반환한다.
+
+기준 구현: `com.backend.domain.user.service.UserService`
 
 ---
 
-## 2. 변경/완화 사항 (상 등급 대비)
+## 2. 원칙 / 패턴 설명
 
-| 항목 | 상 등급 | 중 등급 |
-|------|---------|---------|
-| 인터페이스 분리 (`*Service` + `*ServiceImpl`) | 필수 | 선택 (단일 `*Service` 클래스 허용) |
-| 클래스 레벨 `@Transactional` | 필수 | 메서드 레벨 개별 선언 권장 |
-| `RuntimeException` 직접 throw | 금지 | `BusinessException` 상속 필수 |
-| 검색 전용 서비스 분리 | 권장 | 선택 |
+### 2.1 클래스 구조
+
+- `@Service` + `@RequiredArgsConstructor` 클래스 단일 구현
+- 인터페이스 분리는 선택 사항이나 테스트 용이성을 위해 권장
+
+### 2.2 트랜잭션 전략
+
+- 클래스 레벨 `@Transactional` 선언으로 기본 쓰기 트랜잭션 적용
+- 조회 전용 메서드에는 `@Transactional(readOnly = true)` 명시 권장
+- 쓰기 메서드는 클래스 레벨 상속으로 트랜잭션 보장
+
+### 2.3 엔티티 조회
+
+Repository의 `default getByXxx()` 메서드를 사용한다. `Optional` 직접 처리 코드를 서비스 메서드 내부에 작성하지 않는다.
+
+### 2.4 예외 처리
+
+비즈니스 위반은 `BusinessException` 하위 커스텀 예외를 throw한다. `RuntimeException` 직접 throw는 금지한다.
 
 ---
 
 ## 3. 강제 사항
 
 ### must
-- `@Service` + `@RequiredArgsConstructor` 적용
-- 조회 전용 메서드에 `@Transactional(readOnly = true)` 명시
-- 쓰기(상태 변경) 메서드에 `@Transactional` 명시
-- 커스텀 예외는 `BusinessException` 상속 (`RuntimeException` 직접 throw 금지)
-- 도메인 간 데이터 접근은 타 도메인 서비스 호출로만 허용 (repository 직접 주입 금지)
-- `userRepository.getByIdAndDeletedAtIsNull(userId)` 같이 존재 보장 메서드(`getByXxx`) 사용
+
+- `@Service` 선언
+- `@RequiredArgsConstructor` 선언 (생성자 주입)
+- 클래스 레벨 `@Transactional` 선언
+- `getByXxx()` default 메서드로 엔티티 조회
+- 커스텀 예외(`BusinessException` 하위) throw
 
 ### should
-- 조회와 쓰기 메서드를 같은 클래스 내에서 명확히 구분
-- 상태 변경 로직은 엔티티 메서드에 위임 (서비스에서 직접 필드 접근 금지)
-- 복잡한 비동기 처리는 `ApplicationEventPublisher` + 이벤트 리스너로 분리
-- 트랜잭션 내 외부 API 호출 최소화
+
+- 조회 메서드에 `@Transactional(readOnly = true)` 명시
+- 쓰기 메서드는 클래스 레벨 트랜잭션 상속
+- 외부 서비스 호출은 트랜잭션 커밋 후 실행 (`TransactionTemplate` 또는 이벤트)
+- 인터페이스 분리 (`{Domain}Service` + 구현체)
 
 ---
 
 ## 4. 예시 코드
 
-실제 `UserService.java` 패턴 인용:
+### 4.1 서비스 기본 구조
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:30-64`
 
 ```java
-// decapet-official/backend/.../user/service/UserService.java:30-127
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UserResponseMapper userResponseMapper;
     private final UserMapper userMapper;
-    // ...
+    private final ApplicationEventPublisher eventPublisher;
 
-    // 조회 전용: readOnly = true 명시
     @Transactional(readOnly = true)
     public UserResponse getUser(String userId) {
         User user = userRepository.getByIdAndDeletedAtIsNull(userId);
         return userResponseMapper.toResponse(user);
     }
 
-    // 쓰기: @Transactional 명시
     @Transactional
     public UserResponse updateProfile(String userId, UpdateProfileRequest request) {
         User user = userRepository.getByIdAndDeletedAtIsNull(userId);
-        // 상태 변경은 엔티티 메서드에 위임
         user.updateProfile(userMapper.toProfileUpdateInfo(request));
         return userResponseMapper.toResponse(user);
     }
@@ -79,41 +86,25 @@ public class UserService {
         refreshTokenRepository.deleteByUserId(userId);
         user.anonymize(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.delete();
-        // 비동기 cascade는 트랜잭션 커밋 후 이벤트로 처리
-        eventPublisher.publishEvent(new UserDeletedEvent(userId));
-    }
-
-    @Transactional
-    public void changePassword(String userId, String accessToken,
-                               String currentPassword, String newPassword) {
-        User user = userRepository.getByIdAndDeletedAtIsNull(userId);
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            throw new InvalidPasswordException(); // BusinessException 상속
-        }
-        user.updatePassword(passwordEncoder.encode(newPassword));
-        tokenService.blacklistAccessToken(accessToken);
+        eventPublisher.publishEvent(new UserDeletedEvent(userId)); // 커밋 후 cascade 처리
     }
 }
 ```
 
-커스텀 예외 패턴 (`InvalidPasswordException`은 `BusinessException` 상속):
+### 4.2 커스텀 예외
+
+`decapet-official/backend/src/main/java/com/backend/domain/user/service/UserService.java:109-114`
 
 ```java
-// com.backend.domain.user.exception.InvalidPasswordException
-public class InvalidPasswordException extends BusinessException {
-    public InvalidPasswordException() {
-        super(ErrorCode.INVALID_PASSWORD);
+@Transactional
+public void changePassword(String userId, String accessToken, String currentPassword, String newPassword) {
+    User user = userRepository.getByIdAndDeletedAtIsNull(userId);
+
+    if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+        throw new InvalidPasswordException(); // BusinessException 하위 커스텀 예외
     }
-}
-```
 
-`getByXxx()` default 메서드 패턴 (서비스에서 `orElseThrow` 중복 작성 불필요):
-
-```java
-// decapet-official/backend/.../user/repository/UserRepository.java:39-42
-default User getByIdAndDeletedAtIsNull(String id) {
-    return findByIdAndDeletedAtIsNull(id)
-        .orElseThrow(UserNotFoundException::new);
+    user.updatePassword(passwordEncoder.encode(newPassword));
 }
 ```
 
@@ -121,12 +112,13 @@ default User getByIdAndDeletedAtIsNull(String id) {
 
 ## 5. 체크리스트
 
-- [ ] `@Service` + `@RequiredArgsConstructor` 적용되었는가
-- [ ] 조회 메서드에 `@Transactional(readOnly = true)` 명시되었는가
-- [ ] 쓰기 메서드에 `@Transactional` 명시되었는가
-- [ ] 커스텀 예외가 `BusinessException`을 상속하는가
-- [ ] 도메인 간 접근이 타 서비스 호출로만 이루어지는가 (cross-repository 금지)
-- [ ] 엔티티 상태 변경이 엔티티 메서드에 위임되는가 (직접 필드 조작 금지)
-- [ ] repository 조회에 `getByXxx()` default 메서드를 활용하는가
-- [ ] 트랜잭션 경계 밖 외부 I/O(SMS, 이벤트 발행)가 커밋 후 실행되도록 처리되었는가
-- [ ] 서비스 내 불필요한 `orElseThrow` 중복 코드가 없는가
+- [ ] `@Service` 선언
+- [ ] `@RequiredArgsConstructor` 선언
+- [ ] 클래스 레벨 `@Transactional` 선언
+- [ ] 조회 메서드에 `@Transactional(readOnly = true)` (권장)
+- [ ] 엔티티 조회 시 `getByXxx()` default 메서드 사용
+- [ ] 모든 예외는 `BusinessException` 하위 커스텀 예외
+- [ ] 예외 클래스는 `com.backend.domain.{x}.exception` 패키지
+- [ ] 컨트롤러 응답 처리 코드(`ResponseEntity` 등) 없음
+- [ ] 엔티티 상태 변경은 도메인 메서드로만 처리
+- [ ] 외부 서비스 호출은 트랜잭션 외부 실행 처리 (권장)

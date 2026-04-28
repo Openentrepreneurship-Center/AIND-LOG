@@ -1,112 +1,126 @@
-# spec-driven-buisness-rule-guidlines.md — 중 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
+# spec-driven-buisness-rule-guidlines.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
 ---
 
 ## 1. 개요
 
-본 문서는 decapet-official/backend 에서 비즈니스 규칙을 코드에 명시하는 기준을 정의한다.
-상 등급의 PGM-ID 는 외부 시스템 연계 의존이 없는 이 프로젝트에서 강제하지 않는다.
-대신 도메인 핵심 메서드(인증 · 결제 · 권한 변경)에 한해 RULE-ID 주석을 권장하며,
-PR 설명에 영향 받는 RULE-ID 를 명시하여 추적성을 확보한다.
+이 문서는 `com.backend` 도메인 핵심 메서드(인증, 결제, 예약, 권한, 처방)를 구현할 때 RULE-ID 주석 체계를 통해 비즈니스 규칙과 코드 사이의 추적성을 확보하는 방법을 정의한다.
 
 ---
 
-## 2. 변경/완화 사항
+## 2. 원칙
 
-| 상 등급 항목 | 중 등급 변경 내용 |
-|---|---|
-| PGM-ID 주석 (PGM-XXX) 강제 | 면제 — 외부 시스템 연계가 없으므로 불필요 |
-| RULE-ID 모든 메서드 적용 | 도메인 핵심 메서드(인증/결제/정산/권한)에 한해 권장(should) |
-| RULE-ID 주석 삭제 금지 강제 | 동일하게 유지 — 한번 선언된 RULE-ID 주석은 삭제하지 않는다 |
-| 구현 완료 여부 전수 검토 | 핵심 도메인에 한해 PR 리뷰 시 검토 |
+- 핵심 비즈니스 메서드는 어떤 규칙을 구현하는지 주석으로 명시한다.
+- RULE-ID는 삭제하지 않는다. 폐기 시에만 `@Deprecated` 표기로 유지한다.
+- PR 본문에 변경된 RULE-ID를 명시하여 리뷰어가 명세 변경 여부를 확인할 수 있도록 한다.
 
 ---
 
 ## 3. 강제 사항
 
-### 3-1. RULE-ID 주석 형식 (should)
+### 3-1. RULE-ID 주석
 
-- 인증 · 결제 · 정산 · 권한 변경 등 핵심 비즈니스 메서드에 RULE-ID 주석을 작성한다.
-- 형식: `// RULE: {도메인}-{기능}-{순번}` (예: `// RULE: USER-LOGIN-001`)
-- 메서드 시작부 javadoc 또는 인라인 주석 두 곳에 모두 작성하면 가장 좋다.
+**must**
 
-```java
-/**
- * SMS OTP 인증을 검증하고 전화번호를 변경한다.
- * RULE: USER-PHONE-001 - 인증번호는 5분 이내에만 유효하다.
- * RULE: USER-PHONE-002 - 인증 성공 후 기존 OTP 는 즉시 무효화한다.
- */
-@Transactional
-public void verifyPhone(String userId, PhoneVerifyRequest request) {
-    // RULE: USER-PHONE-001
-    otpService.validate(request.phone(), request.code());
-    // RULE: USER-PHONE-002
-    otpService.invalidate(request.phone());
-    userRepository.findById(userId)
-        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
-        .updatePhone(request.phone());
-}
-```
+- 인증, 결제, 예약, 권한, 처방 도메인의 핵심 메서드에는 메서드 주석 블록에 RULE-ID를 명시한다.
 
-### 3-2. RULE-ID 유지 (must)
+  ```java
+  /**
+   * 사용자 로그인 처리.
+   * RULE: USER-LOGIN-001 - 이메일/비밀번호 기반 인증
+   * RULE: USER-LOGIN-002 - 계정 잠금 정책 (5회 실패 시 잠금)
+   */
+  @Transactional(rollbackFor = Exception.class)
+  public LoginResponse login(LoginRequest request) { ... }
+  ```
 
-- 한번 선언된 RULE-ID 주석은 비즈니스 규칙이 변경되더라도 삭제하지 않는다.
-- 규칙 변경 시 기존 RULE-ID 에 변경 사유 주석을 추가하거나, 신규 RULE-ID 를 병기한다.
+- 규칙이 실행되는 코드 라인에 인라인 주석으로 RULE-ID를 표기한다.
 
-### 3-3. PR 설명 (must)
+  ```java
+  // RULE: USER-LOGIN-002 - 계정 잠금 상태 확인
+  if (user.isLocked()) {
+      throw new BusinessException(ErrorCode.USER_ACCOUNT_LOCKED);
+  }
+  ```
 
-- 핵심 비즈니스 규칙에 영향을 주는 PR 은 본문에 관련 RULE-ID 를 명시한다.
-- 형식 예시: `영향 규칙: USER-PHONE-001, USER-PHONE-002`
+- RULE-ID 형식은 `{도메인}-{기능}-{순번}`을 따른다. 예: `USER-LOGIN-001`, `PAY-CONFIRM-001`
 
-### 3-4. 코드 품질 (must)
+**must**
 
-- 병합 전 lint 오류 · 컴파일 오류 없음을 확인한다.
-- RULE-ID 가 선언된 메서드는 단위 테스트를 1개 이상 작성한다.
+- PR 본문에 추가·수정·폐기된 RULE-ID를 명시한다.
+
+  ```
+  ## Business Rules
+  - 추가: USER-LOGIN-003 - OTP 2차 인증 적용
+  - 폐기: APT-BOOK-002 - deprecated (대체: APT-BOOK-005)
+  ```
+
+- RULE-ID를 소스에서 삭제하는 것을 금지한다. 폐기 시 아래와 같이 표기한다.
+
+  ```java
+  // RULE: APT-BOOK-002 - @Deprecated (APT-BOOK-005로 대체됨, 2025-03-01)
+  ```
+
+**should**
+
+- 일반 CRUD 메서드는 RULE-ID 적용에서 제외할 수 있다. 비즈니스 조건이 포함된 경우에는 적용한다.
+- PGM-ID(외부 시스템 연동 식별자)는 이 등급에서 의무 적용에서 제외한다.
 
 ---
 
-## 4. 예시
+## 4. 코드 예시 (decapet 인용)
 
-### RULE-ID 선언 패턴
+### 결제 승인 — RULE-ID 적용
 
 ```java
-// com.backend.domain.user.service.UserService
-
+// com.backend.domain.payment.service.PaymentService
 /**
- * RULE: USER-LOGIN-001 - 탈퇴 또는 정지 계정은 로그인을 허용하지 않는다.
- * RULE: USER-LOGIN-002 - 로그인 성공 시 마지막 로그인 시각을 갱신한다.
+ * 결제 승인 처리.
+ * RULE: PAY-CONFIRM-001 - 결제 금액 일치 검증
+ * RULE: PAY-CONFIRM-002 - 주문 상태 PENDING 검증
  */
-@Transactional
-public TokenResponse login(LoginRequest request) {
-    // RULE: USER-LOGIN-001
-    User user = userRepository.findByEmail(request.email())
-        .filter(u -> !u.isDeleted() && u.isActive())
-        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
-    // RULE: USER-LOGIN-002
-    user.updateLastLoginAt(LocalDateTime.now());
-    return tokenProvider.generate(user.getId());
+@Transactional(rollbackFor = Exception.class)
+public void confirmPayment(String paymentKey, String orderId, long amount) {
+
+    Payment payment = paymentRepository.findByOrderId(orderId)
+        .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+
+    // RULE: PAY-CONFIRM-002
+    if (payment.getStatus() != PaymentStatus.PENDING) {
+        throw new BusinessException(ErrorCode.PAYMENT_NOT_PENDING);
+    }
+
+    // RULE: PAY-CONFIRM-001
+    if (payment.getAmount() != amount) {
+        throw new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
+    }
 }
 ```
 
-### PR 본문 예시
+### ErrorCode — 비즈니스 규칙 에러 코드
 
-```
-## 변경 사항
-- OTP 인증 만료 시간을 5분에서 3분으로 단축
-
-## 영향 규칙
-- RULE: USER-PHONE-001 (만료 시간 조건 변경)
+```java
+// com.backend.global.error.ErrorCode (일부 발췌)
+PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "PM007", "결제 금액이 일치하지 않습니다."),
+PAYMENT_NOT_PENDING(HttpStatus.BAD_REQUEST, "PM003", "대기 중인 결제가 아닙니다."),
+USER_ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "U012", "계정이 일시적으로 잠겼습니다."),
 ```
 
 ---
 
 ## 5. 체크리스트
 
-- [ ] 인증 · 결제 · 권한 변경 메서드에 RULE-ID 주석 작성
-- [ ] RULE-ID 형식이 `RULE: {도메인}-{기능}-{순번}` 를 따름
-- [ ] 기존 RULE-ID 주석이 삭제되지 않음
-- [ ] 핵심 비즈니스 규칙 변경 PR 본문에 RULE-ID 명시
-- [ ] RULE-ID 선언 메서드에 단위 테스트 1개 이상 존재
-- [ ] 병합 전 컴파일 오류 · lint 오류 없음 확인
+### RULE-ID 주석
+- [ ] 인증/결제/예약/권한/처방 핵심 메서드에 메서드 주석 블록 RULE-ID 기재
+- [ ] 규칙 실행 코드 라인에 인라인 RULE-ID 주석 추가
+- [ ] RULE-ID 형식 `{도메인}-{기능}-{순번}` 준수
+
+### PR 관리
+- [ ] PR 본문 `## Business Rules` 섹션에 변경 RULE-ID 명시
+- [ ] RULE-ID 소스 삭제 없음 (폐기 시 `@Deprecated` 표기)
+
+### 코드 품질
+- [ ] 핵심 비즈니스 메서드에 RULE-ID 누락 없음
+- [ ] 모든 RULE-ID 구현 완료 여부 검토
+- [ ] lint 오류 없음

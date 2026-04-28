@@ -1,48 +1,60 @@
-# project-base-guidelines.md — 하 등급
-> 적용 대상: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
-> 상 등급에서 본 등급이 변경/완화하는 항목만 명시. 그 외는 상 등급 권고를 따른다.
+# project-base-guidelines.md
+> 적용 환경: decapet-official/backend (Spring Boot 4.0.1, JPA, Gradle, com.backend)
 
-## 개요
+---
 
-이 문서는 decapet-official/backend 프로젝트의 기술 스택 핵심 항목만 정의한다.
-상 등급 원본은 Spring Boot 3.2.4 + MyBatis + Maven 기반이었으나, 본 프로젝트는 Spring Boot 4.0.1 + JPA + Gradle 환경이다.
+## 1. 개요
 
-## 변경/완화 사항
+이 문서는 `decapet-official/backend` 프로젝트의 핵심 기술 스택과 빌드 명령을 정의한다.
 
-- 상 등급의 전체 의존성 표 → 하 등급은 핵심 스택만 기재
-- 상 등급의 Maven 3.9 → Gradle 사용
-- MyBatis, XML Mapper 관련 항목 해당 없음
+---
 
-## 이 등급에서 강제하는 것
+## 2. 핵심 기술 스택
 
-**must**
-- 아래 핵심 기술 스택을 기준으로 코드를 작성한다.
-- 빌드는 `./gradlew build`를 사용한다.
+| 항목 | 내용 |
+|------|------|
+| 언어 | Java 17 |
+| 프레임워크 | Spring Boot 4.0.1 |
+| 빌드 도구 | Gradle (Groovy DSL) |
+| ORM | Spring Data JPA |
+| DB | PostgreSQL |
+| 마이그레이션 | Flyway |
+| 보안 | Spring Security + JJWT 0.12.6 |
+| PK 전략 | ULID (ulid-creator 5.2.3) |
 
-## 핵심 기술 스택
+---
 
-| 항목 | 값 |
-|---|---|
-| Spring Boot | 4.0.1 |
-| Java | 17 |
-| 빌드 도구 | Gradle |
-| 패키지 루트 | com.backend |
-| ORM | JPA (Spring Data JPA) |
-| 데이터베이스 | PostgreSQL |
-| 인증 | JWT |
-| PK 생성 | ULID |
+## 3. 빌드 명령
 
-## 빌드
+| 명령 | 목적 |
+|------|------|
+| `./gradlew build` | 컴파일 + 테스트 + JAR 생성 |
+| `./gradlew test` | 테스트 실행 |
+| `./gradlew bootRun` | 로컬 서버 실행 |
 
-```bash
-./gradlew build   # 전체 빌드
-./gradlew test    # 테스트
+Java Toolchain 설정:
+
+```groovy
+// decapet-official/backend/build.gradle:11-15
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
 ```
 
-## 체크리스트
+---
 
-- [ ] Spring Boot 버전이 4.0.1인가?
-- [ ] 빌드 도구가 Gradle인가?
-- [ ] ORM으로 JPA를 사용하고 있는가? (MyBatis 미사용)
-- [ ] 패키지 루트가 `com.backend`인가?
-- [ ] secrets가 환경변수 또는 `.env`로 관리되는가?
+## 4. 환경 분리
+
+- 환경별 설정은 `application-{profile}.yml`로 분리한다.
+- 민감 정보(DB 비밀번호, JWT 시크릿)는 소스에 하드코딩하지 않는다.
+
+---
+
+## 5. 체크리스트
+
+- [ ] `./gradlew build`가 오류 없이 완료되는가
+- [ ] 민감 정보가 소스에 하드코딩되지 않았는가
+- [ ] 환경별 설정이 `application-{profile}.yml`로 분리되어 있는가
+- [ ] Entity 필드 추가 시 Flyway 마이그레이션 파일이 함께 작성되었는가
