@@ -31,17 +31,34 @@ def main() -> None:
         metrics_dir = workspace / ".cline-metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
 
+        event_payload = extract_payload(data)
+
+        # 이벤트별 payload 키 (이미 extract_payload로 추출)
+        _payload_keys = {
+            "taskStart", "taskResume", "taskCancel", "taskComplete",
+            "preToolUse", "postToolUse", "userPromptSubmit", "preCompact",
+        }
+        # top-level에 있는 토큰/컨텍스트 관련 추가 데이터 수집
+        extra = {
+            k: v for k, v in data.items()
+            if k not in _payload_keys
+            and k not in ("timestamp", "taskId", "hookName", "clineVersion",
+                          "model", "workspaceRoots", "environment")
+        }
+
         record = {
             "ts": data.get("timestamp"),
             "taskId": data.get("taskId"),
             "event": data.get("hookName"),
             "clineVersion": data.get("clineVersion"),
             "model": data.get("model"),
-            "payload": extract_payload(data),
+            "payload": event_payload,
+            **({"extra": extra} if extra else {}),
         }
 
         with (metrics_dir / "events.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
     except Exception:
         try:
             err_dir = Path.home() / ".cline-metrics-errors"

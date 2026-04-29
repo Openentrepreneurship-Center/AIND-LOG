@@ -1,3 +1,11 @@
+export interface TokenUsageEntry {
+  tokens_in: number
+  tokens_out: number
+  tokens_in_cache: number
+  tokens_out_cache: number
+  compact_count: number
+}
+
 export interface Summary {
   total_events: number
   total_hook_events: number
@@ -11,9 +19,22 @@ export interface Summary {
   file_rework_count: number
   file_rework_rate: number
   read_write_ratio: number
+  efficiency_score: number
+  unique_written_files: number
+  auto_approved_count: number
+  manual_approval_count: number
+  auto_approval_by_tool: Record<string, number>
+  manual_approval_by_tool: Record<string, number>
+  safe_tools_count: number
   model_usage: Record<string, number>
   top_model: string
   unique_models: number
+  token_usage: Record<string, TokenUsageEntry>
+  total_tokens_in: number
+  total_tokens_out: number
+  total_tokens_in_cache: number
+  total_tokens_out_cache: number
+  compact_count: number
 }
 
 export interface ProjectSimilarityResult {

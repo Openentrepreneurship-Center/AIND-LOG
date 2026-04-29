@@ -65,9 +65,22 @@ class SummaryModel(BaseModel):
     file_rework_count: int = Field(..., description="동일 파일을 2회 이상 write_to_file 한 파일 수 (재작업 추정치)")
     file_rework_rate: float = Field(..., description="파일 재작업률(%) = file_rework_count / unique_written_files × 100")
     read_write_ratio: float = Field(..., description="읽기/쓰기 비율 = total_reads / total_writes (낮을수록 효율적 코드 생성)")
+    efficiency_score: float = Field(0.0, description="효율성 점수 = (1 - file_rework_rate/100) / max(read_write_ratio, 0.1) — 재작업↓ 읽기↓ 일수록 높음")
+    unique_written_files: int = Field(0, description="write_to_file 이 호출된 고유 파일 수")
+    auto_approved_count: int = Field(0, description="requires_approval=false 인 PreToolUse 횟수 (자동 승인된 도구 실행)")
+    manual_approval_count: int = Field(0, description="requires_approval=true 인 PreToolUse 횟수 (사람 승인 필요)")
+    auto_approval_by_tool: dict[str, int] = Field(default_factory=dict, description="자동 승인된 도구별 횟수")
+    manual_approval_by_tool: dict[str, int] = Field(default_factory=dict, description="수동 승인이 필요했던 도구별 횟수")
+    safe_tools_count: int = Field(0, description="승인 필드 없이 실행된 도구 횟수 (읽기/검색 등 항상 자동 허용)")
     model_usage: dict[str, int] = Field(..., description="모델별 이벤트 발생 횟수 {'provider/slug': count}")
     top_model: str = Field(..., description="가장 많이 사용된 모델 (provider/slug)")
     unique_models: int = Field(..., description="사용된 고유 모델 수")
+    token_usage: dict[str, Any] = Field(default_factory=dict, description="모델별 토큰 사용량 집계 (PreCompact 이벤트 기반)")
+    total_tokens_in: int = Field(0, description="전체 입력 토큰 합계")
+    total_tokens_out: int = Field(0, description="전체 출력 토큰 합계")
+    total_tokens_in_cache: int = Field(0, description="전체 캐시 입력 토큰 합계")
+    total_tokens_out_cache: int = Field(0, description="전체 캐시 출력 토큰 합계")
+    compact_count: int = Field(0, description="PreCompact 이벤트 발생 횟수 (컨텍스트 압축 횟수)")
 
 
 class TestRunModel(BaseModel):
@@ -343,6 +356,14 @@ def process(events: list[dict]) -> dict:
     event_type_counts: dict[str, int] = defaultdict(int)
     tool_counts: dict[str, int] = defaultdict(int)
     model_usage: dict[str, int] = defaultdict(int)
+    auto_approval_by_tool: dict[str, int] = defaultdict(int)
+    manual_approval_by_tool: dict[str, int] = defaultdict(int)
+    safe_tools_by_tool: dict[str, int] = defaultdict(int)
+    # 모델별 토큰 집계 (PreCompact 기반)
+    token_usage: dict[str, dict] = defaultdict(lambda: {
+        "tokens_in": 0, "tokens_out": 0,
+        "tokens_in_cache": 0, "tokens_out_cache": 0, "compact_count": 0,
+    })
     last_task_id: str | None = None
 
     for idx, ev in enumerate(events, start=1):
@@ -364,8 +385,40 @@ def process(events: list[dict]) -> dict:
         event_type_counts[event] += 1
         if event in ("PreToolUse", "PostToolUse") and tool_name:
             tool_counts[tool_name] += 1
+
+        # Auto-Approve 추적: PreToolUse의 requires_approval 필드 분석
+        if event == "PreToolUse" and tool_name:
+            ra = params.get("requiresApproval") or params.get("requires_approval")
+            if ra is False or ra == "false":
+                auto_approval_by_tool[tool_name] += 1
+            elif ra is True or ra == "true":
+                manual_approval_by_tool[tool_name] += 1
+            else:
+                # requires_approval 필드 없음 = 항상 자동 허용되는 안전 도구
+                safe_tools_by_tool[tool_name] += 1
         if provider and slug:
             model_usage[f"{provider}/{slug}"] += 1
+
+        # 토큰 데이터 수집: PreCompact payload 또는 extra 필드
+        extra: dict = ev.get("extra") or {}
+        token_src: dict = {}
+        if event == "PreCompact":
+            # payload = preCompact 내부 데이터 (tokensIn 등 직접 포함)
+            token_src = payload or extra
+        elif extra:
+            # 다른 이벤트에서 top-level 토큰 데이터가 있을 경우 수집
+            if any(k in extra for k in ("tokensIn", "tokensOut", "inputTokens", "outputTokens")):
+                token_src = extra
+
+        if token_src:
+            model_key = f"{provider}/{slug}" if (provider and slug) else "unknown"
+            tu = token_usage[model_key]
+            tu["tokens_in"]        += (token_src.get("tokensIn") or token_src.get("inputTokens") or 0)
+            tu["tokens_out"]       += (token_src.get("tokensOut") or token_src.get("outputTokens") or 0)
+            tu["tokens_in_cache"]  += token_src.get("tokensInCache", 0)
+            tu["tokens_out_cache"] += token_src.get("tokensOutCache", 0)
+            if event == "PreCompact":
+                tu["compact_count"] += 1
 
         # GitCommit 이벤트는 payload 가 없으므로 snapshot 데이터로 보강
         git_sha = ev.get("sha", "")
@@ -563,9 +616,26 @@ def process(events: list[dict]) -> dict:
             "file_rework_count": rework_file_count,
             "file_rework_rate": round(rework_file_count / n_unique * 100, 1) if n_unique else 0.0,
             "read_write_ratio": round(total_reads / max(total_writes, 1), 2),
+            "efficiency_score": round(
+                (1 - (rework_file_count / n_unique if n_unique else 0))
+                / max(total_reads / max(total_writes, 1), 0.1),
+                2
+            ),
+            "unique_written_files": n_unique,
+            "auto_approved_count": sum(auto_approval_by_tool.values()),
+            "manual_approval_count": sum(manual_approval_by_tool.values()),
+            "auto_approval_by_tool": dict(auto_approval_by_tool),
+            "manual_approval_by_tool": dict(manual_approval_by_tool),
+            "safe_tools_count": sum(safe_tools_by_tool.values()),
             "model_usage": dict(model_usage),
             "top_model": top_model,
             "unique_models": len(model_usage),
+            "token_usage": {k: dict(v) for k, v in token_usage.items()},
+            "total_tokens_in":       sum(v["tokens_in"]        for v in token_usage.values()),
+            "total_tokens_out":      sum(v["tokens_out"]       for v in token_usage.values()),
+            "total_tokens_in_cache": sum(v["tokens_in_cache"]  for v in token_usage.values()),
+            "total_tokens_out_cache":sum(v["tokens_out_cache"] for v in token_usage.values()),
+            "compact_count":         sum(v["compact_count"]    for v in token_usage.values()),
         },
         "tasks": task_list,
         "events": event_list,
