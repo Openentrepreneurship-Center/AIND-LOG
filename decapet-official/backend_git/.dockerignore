@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+build/
+target/
+bin/
+out/
+*.jar
+*.war
+*.class
+
+# Gradle
+.gradle/
+gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.project
+.classpath
+
+# Environment
+.env
+.env.*
+*.log
+
+# Documentation
+README.md
+docs/
+
+# CI/CD
+.github/
+
+# macOS
+.DS_Store
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node (if any)
+node_modules/
+npm-debug.log
