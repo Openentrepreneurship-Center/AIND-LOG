@@ -41,18 +41,6 @@ function ScoreBadge({ value }: { value: number }) {
   )
 }
 
-function SizeChange({ oldSize, newSize }: { oldSize: number; newSize: number }) {
-  if (oldSize === 0) return <span className="text-gray-500 text-xs">신규</span>
-  const diff = newSize - oldSize
-  const sign = diff > 0 ? '+' : ''
-  const color = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-gray-500'
-  return (
-    <span className={`text-xs font-mono ${color}`}>
-      {sign}{diff.toLocaleString()}B
-    </span>
-  )
-}
-
 // 커스텀 툴팁
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null

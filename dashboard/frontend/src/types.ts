@@ -9,6 +9,7 @@ export interface TokenUsageEntry {
 export interface Summary {
   total_events: number
   total_hook_events: number
+  event_type_counts: Record<string, number>
   total_git_events: number
   total_tasks: number
   total_resumes: number
@@ -26,6 +27,10 @@ export interface Summary {
   auto_approval_by_tool: Record<string, number>
   manual_approval_by_tool: Record<string, number>
   safe_tools_count: number
+  safe_tools_by_tool: Record<string, number>
+  auto_approve_by_category: Record<string, { auto: number; manual: number; safe: number }>
+  inferred_auto_approve: string[]
+  yolo_mode_suspected: boolean
   model_usage: Record<string, number>
   top_model: string
   unique_models: number
@@ -35,6 +40,47 @@ export interface Summary {
   total_tokens_in_cache: number
   total_tokens_out_cache: number
   compact_count: number
+  total_task_cancel_events: number
+  tasks_ended_canceled: number
+  task_cancel_rate_pct: number
+  post_cancel_prompt_pairs: number
+  // ── 자율성 지표 ──
+  human_action_count: number
+  agent_action_count: number
+  mixed_action_count: number
+  autonomy_pct: number
+  human_actions_breakdown: Record<string, number>
+  agent_actions_breakdown: Record<string, number>
+  mixed_actions_breakdown: Record<string, number>
+  // ── 파일 세부 데이터 ──
+  rework_files: { file: string; write_count: number }[]
+  top_written_files: { file: string; count: number }[]
+  top_read_files: { file: string; count: number }[]
+  // ── 토큰 추정 ──
+  est_total_tokens: number
+  est_total_cost_usd: number
+  est_by_model: {
+    model: string
+    price_key: string
+    price_input: number
+    price_output: number
+    tokens_in: number
+    tokens_out: number
+    cost_usd: number
+  }[]
+}
+
+export interface CancelFollowup {
+  taskId: string
+  cancel_event_idx: number
+  prompt_event_idx: number
+  cancel_ts_kst: string
+  prompt_ts_kst: string
+  gap_sec: number | null
+  cancel_context: string
+  prompt_text: string
+  follow_result: string
+  follow_status: '완료' | '재취소' | '진행중'
 }
 
 export interface ProjectSimilarityResult {
@@ -86,6 +132,7 @@ export interface Task {
   test_total_sec: number | null
   test_pct_of_duration: number | null
   resume_count: number
+  cancel_count: number
   model: string
   tools_used: string[]
   file_paths: string[]
@@ -165,10 +212,35 @@ export interface SimilarityResult {
   changed: boolean
 }
 
+export interface HumanInteractionItem {
+  event_idx: number
+  taskId: string
+  ts_kst: string
+  interaction_type: 'ask_followup' | 'plan_mode'
+  agent_message: string
+  options: string[]
+  user_answer: string
+  task_context: string
+}
+
+export interface ManualApprovalItem {
+  event_idx: number
+  taskId: string
+  ts_kst: string
+  tool_name: string
+  command: string
+  file_path: string
+  task_context: string
+  content_preview: string
+}
+
 export interface DashboardData {
   summary: Summary
   tasks: Task[]
   events: EventItem[]
+  cancel_followups: CancelFollowup[]
+  manual_approval_items: ManualApprovalItem[]
+  human_interaction_items: HumanInteractionItem[]
   counts: {
     event_types: CountItem[]
     tools: CountItem[]

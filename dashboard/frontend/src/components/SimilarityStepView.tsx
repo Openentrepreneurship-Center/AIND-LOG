@@ -195,7 +195,7 @@ export default function SimilarityStepView({ file }: Props) {
         <div>
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
-            커밋 단계별 유사도
+            AI코드 Quality — 커밋 단계별 변화율
             {results.length > 0 && <span className="text-xs font-normal text-gray-500">{results.length}개 커밋</span>}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">항목 클릭 → 상세 모달 · 낮을수록 큰 변경</p>

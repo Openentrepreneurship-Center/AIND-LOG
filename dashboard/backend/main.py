@@ -12,7 +12,7 @@ import asyncio
 import json
 import os
 import re
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncGenerator
@@ -49,12 +49,101 @@ TEST_CMD_RE = re.compile(
 )
 CODE_TOOLS = {"write_to_file", "replace_in_file", "new_file", "apply_diff"}
 
+# ── Auto-Approve 도구 카테고리 매핑 (Cline 공식 문서 기준) ───────────────────
+# https://docs.cline.bot 의 Auto Approve & YOLO Mode 문서 참조
+TOOL_CATEGORY: dict[str, str] = {
+    # 파일 읽기 (Read project/all files) — 기본적으로 항상 자동, requiresApproval 없음
+    "read_file": "파일읽기",
+    "read_file_content": "파일읽기",
+    "list_files": "파일읽기",
+    "list_directory": "파일읽기",
+    "list_files_recursive": "파일읽기",
+    "search_files": "파일읽기",
+    "list_code_definition_names": "파일읽기",
+    "get_file_info": "파일읽기",
+    # 파일 편집 (Edit project/all files) — 기본 승인 필요, Auto-Approve 가능
+    "write_to_file": "파일편집",
+    "replace_in_file": "파일편집",
+    "new_file": "파일편집",
+    "apply_diff": "파일편집",
+    "create_file": "파일편집",
+    # 명령 실행 (Execute safe/all commands)
+    "execute_command": "명령실행",
+    "run_command": "명령실행",
+    # 브라우저 (Use the browser)
+    "browser_action": "브라우저",
+    "web_fetch": "브라우저",
+    "web_search": "브라우저",
+    "fetch": "브라우저",
+    # MCP (Use MCP servers) — tool_name에 mcp_ prefix 또는 mcp_server_name 포함
+}
+
+def _tool_category(tool_name: str) -> str:
+    """도구명으로 Cline Auto-Approve 카테고리를 반환합니다."""
+    if not tool_name:
+        return "기타"
+    cat = TOOL_CATEGORY.get(tool_name)
+    if cat:
+        return cat
+    # MCP 도구 휴리스틱: 소문자+밑줄 조합이지만 위 목록에 없으면 MCP로 간주
+    if "_" in tool_name and tool_name not in CODE_TOOLS:
+        return "MCP서버"
+    return "기타"
+
+# ── 모델별 토큰 가격표 (per 1M tokens, USD, 2025년 기준 예시) ──────────────────
+# 실제 계약 가격과 다를 수 있으며 추정에만 사용됩니다.
+MODEL_PRICE_TABLE: dict[str, dict[str, float]] = {
+    # Anthropic — Claude Sonnet 계열
+    "claude-sonnet-4-7":    {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    "claude-sonnet-4.6":    {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    "claude-sonnet-4.5":    {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    "claude-3-5-sonnet":    {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    "claude-3.5-sonnet":    {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    "claude-3-sonnet":      {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+    # Anthropic — Claude Haiku 계열
+    "claude-3-5-haiku":     {"input": 0.80,  "output": 4.0,   "cache_r": 0.08, "cache_w": 1.0},
+    "claude-3.5-haiku":     {"input": 0.80,  "output": 4.0,   "cache_r": 0.08, "cache_w": 1.0},
+    "claude-3-haiku":       {"input": 0.25,  "output": 1.25,  "cache_r": 0.03, "cache_w": 0.30},
+    # Anthropic — Claude Opus 계열
+    "claude-opus-4-7":      {"input": 15.0,  "output": 75.0,  "cache_r": 1.50, "cache_w": 18.75},
+    "claude-3-opus":        {"input": 15.0,  "output": 75.0,  "cache_r": 1.50, "cache_w": 18.75},
+    "claude-3.5-opus":      {"input": 15.0,  "output": 75.0,  "cache_r": 1.50, "cache_w": 18.75},
+    # OpenAI — GPT-4o 계열
+    "gpt-4o":               {"input": 2.5,   "output": 10.0,  "cache_r": 1.25, "cache_w": 0.0},
+    "gpt-4o-mini":          {"input": 0.15,  "output": 0.60,  "cache_r": 0.075,"cache_w": 0.0},
+    "gpt-4-turbo":          {"input": 10.0,  "output": 30.0,  "cache_r": 0.0,  "cache_w": 0.0},
+    "o1":                   {"input": 15.0,  "output": 60.0,  "cache_r": 7.5,  "cache_w": 0.0},
+    "o1-mini":              {"input": 1.10,  "output": 4.40,  "cache_r": 0.55, "cache_w": 0.0},
+    # Google — Gemini 계열
+    "gemini-2.0-flash":     {"input": 0.10,  "output": 0.40,  "cache_r": 0.025,"cache_w": 0.0},
+    "gemini-1.5-pro":       {"input": 1.25,  "output": 5.0,   "cache_r": 0.0,  "cache_w": 0.0},
+    "gemini-1.5-flash":     {"input": 0.075, "output": 0.30,  "cache_r": 0.0,  "cache_w": 0.0},
+    # 기본값 (알 수 없는 모델)
+    "_default":             {"input": 3.0,   "output": 15.0,  "cache_r": 0.30, "cache_w": 3.75},
+}
+
+def _model_price(model_slug: str) -> tuple[str, dict[str, float]]:
+    """모델 slug를 가격표 키에 매핑하고 (matched_key, price_dict)를 반환합니다."""
+    slug = (model_slug or "").lower()
+    # 정확 매칭
+    for key, price in MODEL_PRICE_TABLE.items():
+        if key != "_default" and key in slug:
+            return key, price
+    # 부분 매칭 (claude-sonnet, gpt-4o 등)
+    for key, price in MODEL_PRICE_TABLE.items():
+        if key != "_default":
+            parts = key.split("-")
+            if all(p in slug for p in parts if len(p) > 2):
+                return key, price
+    return "_default", MODEL_PRICE_TABLE["_default"]
+
 # ── Pydantic response models ─────────────────────────────────────────────────
 
 class SummaryModel(BaseModel):
     """전체 집계 요약 지표."""
     total_events: int = Field(..., description="events.jsonl 에 기록된 전체 이벤트 수")
     total_hook_events: int = Field(..., description="cline 훅 이벤트 수 (TaskStart/Complete/Cancel/Resume, Pre/PostToolUse, UserPromptSubmit, PreCompact)")
+    event_type_counts: dict[str, int] = Field(default_factory=dict, description="이벤트 타입별 발생 횟수")
     total_git_events: int = Field(..., description="GitCommit 이벤트 수 (백필 + post-commit hook)")
     total_tasks: int = Field(..., description="TaskStart 이벤트 기준 총 작업 수")
     total_resumes: int = Field(..., description="TaskResume 이벤트가 발생한 작업 수")
@@ -65,13 +154,31 @@ class SummaryModel(BaseModel):
     file_rework_count: int = Field(..., description="동일 파일을 2회 이상 write_to_file 한 파일 수 (재작업 추정치)")
     file_rework_rate: float = Field(..., description="파일 재작업률(%) = file_rework_count / unique_written_files × 100")
     read_write_ratio: float = Field(..., description="읽기/쓰기 비율 = total_reads / total_writes (낮을수록 효율적 코드 생성)")
-    efficiency_score: float = Field(0.0, description="효율성 점수 = (1 - file_rework_rate/100) / max(read_write_ratio, 0.1) — 재작업↓ 읽기↓ 일수록 높음")
+    efficiency_score: float = Field(0.0, description="AI작업 효율성 = (1 - AI재업무율) × R/W비율")
+    rework_files: list[dict] = Field(default_factory=list, description="2회 이상 수정된 파일 목록 [{file, write_count}]")
+    top_written_files: list[dict] = Field(default_factory=list, description="가장 많이 쓰인 파일 Top 20 [{file, count}]")
+    top_read_files: list[dict] = Field(default_factory=list, description="가장 많이 읽힌 파일 Top 20 [{file, count}]")
+    # ── 토큰 추정 (텍스트 볼륨 기반 간접 추정) ──
+    est_total_tokens: int = Field(0, description="추정 총 토큰 수 (텍스트 chars ÷ 4)")
+    est_total_cost_usd: float = Field(0.0, description="추정 비용 (USD, 예시 가격표 기준)")
+    est_by_model: list[dict] = Field(default_factory=list, description="모델별 추정 [{model, tokens_in, tokens_out, cost_usd, price_key}]")
     unique_written_files: int = Field(0, description="write_to_file 이 호출된 고유 파일 수")
     auto_approved_count: int = Field(0, description="requires_approval=false 인 PreToolUse 횟수 (자동 승인된 도구 실행)")
     manual_approval_count: int = Field(0, description="requires_approval=true 인 PreToolUse 횟수 (사람 승인 필요)")
     auto_approval_by_tool: dict[str, int] = Field(default_factory=dict, description="자동 승인된 도구별 횟수")
     manual_approval_by_tool: dict[str, int] = Field(default_factory=dict, description="수동 승인이 필요했던 도구별 횟수")
     safe_tools_count: int = Field(0, description="승인 필드 없이 실행된 도구 횟수 (읽기/검색 등 항상 자동 허용)")
+    safe_tools_by_tool: dict[str, int] = Field(default_factory=dict, description="항상 안전 도구별 횟수")
+    # ── Auto-Approve 카테고리별 분석 (Cline 문서 기준) ──
+    auto_approve_by_category: dict[str, dict] = Field(
+        default_factory=dict,
+        description="Cline 카테고리별 승인 현황 {카테고리: {auto:N, manual:M, safe:K}}",
+    )
+    inferred_auto_approve: list[str] = Field(
+        default_factory=list,
+        description="데이터 기반으로 Auto-Approve가 활성화된 것으로 추정되는 카테고리 목록",
+    )
+    yolo_mode_suspected: bool = Field(False, description="YOLO Mode 의심 여부 — 승인 필요 도구가 모두 auto로 처리된 경우 True")
     model_usage: dict[str, int] = Field(..., description="모델별 이벤트 발생 횟수 {'provider/slug': count}")
     top_model: str = Field(..., description="가장 많이 사용된 모델 (provider/slug)")
     unique_models: int = Field(..., description="사용된 고유 모델 수")
@@ -81,6 +188,60 @@ class SummaryModel(BaseModel):
     total_tokens_in_cache: int = Field(0, description="전체 캐시 입력 토큰 합계")
     total_tokens_out_cache: int = Field(0, description="전체 캐시 출력 토큰 합계")
     compact_count: int = Field(0, description="PreCompact 이벤트 발생 횟수 (컨텍스트 압축 횟수)")
+    # ── Cancel 품질 지표 ──
+    total_task_cancel_events: int = Field(0, description="TaskCancel 훅 발생 총 횟수 (동일 Task 내 다회 가능)")
+    tasks_ended_canceled: int = Field(0, description="최종 상태가 취소로 집계된 Task 수")
+    task_cancel_rate_pct: float = Field(0.0, description="총 Task 중 취소 종료 비율(%)")
+    post_cancel_prompt_pairs: int = Field(0, description="취소 직후 동일 Task에서 이어진 UserPromptSubmit 짝 수")
+    # ── 자율성 지표 ──
+    # 분류 기준: a) 사람=TaskCancel·UserPromptSubmit, b) Agent=TaskComplete·PreToolUse·PostToolUse·PreCompact, c) 혼합=TaskStart·TaskResume
+    # 혼합 이벤트도 사람이 트리거해야 발생하므로 자율성 분모에 포함
+    human_action_count: int = Field(0, description="사람이 직접 트리거한 이벤트 총 수 (a류: TaskCancel + UserPromptSubmit)")
+    agent_action_count: int = Field(0, description="Agent 단독 수행 이벤트 총 수 (b류: TaskComplete + PreToolUse + PostToolUse + PreCompact)")
+    mixed_action_count: int = Field(0, description="사람+Agent 공동 이벤트 총 수 (c류: TaskStart + TaskResume)")
+    autonomy_pct: float = Field(0.0, description="에이전트 자율성(%) = agent_actions / (agent + human + mixed) × 100")
+    human_actions_breakdown: dict[str, int] = Field(default_factory=dict, description="사람 행동 이벤트별 세부 횟수 {event_type: count}")
+    agent_actions_breakdown: dict[str, int] = Field(default_factory=dict, description="Agent 행동 이벤트별 세부 횟수 {event_type: count}")
+    mixed_actions_breakdown: dict[str, int] = Field(default_factory=dict, description="혼합 이벤트별 세부 횟수 {event_type: count}")
+
+
+class CancelFollowupModel(BaseModel):
+    """TaskCancel 직후 같은 taskId에서 기록된 첫 UserPromptSubmit."""
+    taskId: str = Field(..., description="Task ID")
+    cancel_event_idx: int = Field(..., description="TaskCancel 이벤트 줄 번호 (1-based)")
+    prompt_event_idx: int = Field(..., description="후속 UserPromptSubmit 이벤트 줄 번호 (1-based)")
+    cancel_ts_kst: str = Field(..., description="취소 시각 (KST)")
+    prompt_ts_kst: str = Field(..., description="후속 프롬프트 시각 (KST)")
+    gap_sec: float | None = Field(None, description="취소→프롬프트 간격(초)")
+    prompt_text: str = Field(..., description="후속 프롬프트 텍스트 (최대 500자)")
+    cancel_context: str = Field("", description="취소 시점에 진행 중이던 마지막 프롬프트/작업 내용 (최대 500자)")
+    follow_result: str = Field("", description="재프롬프트 이후 TaskComplete 결과 요약 (최대 300자, 없으면 빈 문자열)")
+    follow_status: str = Field("진행중", description="재프롬프트 이후 Task 결과: 완료 / 재취소 / 진행중")
+
+
+class HumanInteractionItemModel(BaseModel):
+    """Auto-Approve 여부와 관계없이 사람이 반드시 직접 응답해야 했던 상호작용.
+    ask_followup_question 또는 plan_mode_respond PostToolUse 이벤트 기반."""
+    event_idx: int = Field(..., description="events.jsonl 줄 번호 (1-based)")
+    taskId: str = Field(..., description="소속 Task ID")
+    ts_kst: str = Field(..., description="발생 시각 (KST)")
+    interaction_type: str = Field(..., description="ask_followup | plan_mode")
+    agent_message: str = Field("", description="Cline이 사용자에게 보낸 질문/응답 (최대 300자)")
+    options: list[str] = Field(default_factory=list, description="제시된 선택지 목록 (ask_followup_question 한정)")
+    user_answer: str = Field("", description="사용자가 실제 입력/선택한 내용 (최대 300자)")
+    task_context: str = Field("", description="해당 Task의 초기 요청 요약 (최대 200자)")
+
+
+class ManualApprovalItemModel(BaseModel):
+    """Auto-Approve 활성화 상태에서도 사람이 직접 승인해야 했던 PreToolUse 이벤트."""
+    event_idx: int = Field(..., description="events.jsonl 줄 번호 (1-based)")
+    taskId: str = Field(..., description="소속 Task ID")
+    ts_kst: str = Field(..., description="발생 시각 (KST)")
+    tool_name: str = Field(..., description="실행 요청된 도구명")
+    command: str = Field("", description="execute_command 도구의 명령어 (최대 300자)")
+    file_path: str = Field("", description="파일 경로 (write/read 도구 한정)")
+    task_context: str = Field("", description="해당 Task의 초기 요청 요약 (최대 200자)")
+    content_preview: str = Field("", description="파일 내용 미리보기 (최대 200자, write 도구 한정)")
 
 
 class TestRunModel(BaseModel):
@@ -115,6 +276,7 @@ class TaskModel(BaseModel):
         description="테스트 소요시간 비중(%) = test_total_sec / duration_sec × 100"
     )
     resume_count: int = Field(..., description="이 Task가 재개(TaskResume)된 횟수")
+    cancel_count: int = Field(0, description="이 Task에서 발생한 TaskCancel 횟수")
     model: str = Field(..., description="사용된 AI 모델 (provider/slug 형식)")
     tools_used: list[str] = Field(..., description="이 Task에서 사용된 도구 목록 (중복 제거)")
     file_paths: list[str] = Field(..., description="수정/읽기된 파일 경로 목록 (최대 10개)")
@@ -171,6 +333,18 @@ class DashboardDataModel(BaseModel):
     tasks: list[TaskModel]
     events: list[EventModel]
     counts: CountsModel
+    cancel_followups: list[CancelFollowupModel] = Field(
+        default_factory=list,
+        description="TaskCancel 직후 사용자가 보낸 첫 프롬프트 목록",
+    )
+    manual_approval_items: list[ManualApprovalItemModel] = Field(
+        default_factory=list,
+        description="Auto-Approve 활성화 상태에서도 수동 승인이 필요했던 PreToolUse 이벤트 목록",
+    )
+    human_interaction_items: list[HumanInteractionItemModel] = Field(
+        default_factory=list,
+        description="사람이 직접 응답해야 했던 상호작용 (ask_followup_question / plan_mode_respond)",
+    )
 
 
 class CommitSnapshotFile(BaseModel):
@@ -325,6 +499,64 @@ def load_events() -> list[dict]:
     return items
 
 
+_HUMAN_EVENTS  = ("TaskCancel", "UserPromptSubmit")
+_AGENT_EVENTS  = ("TaskComplete", "PreToolUse", "PostToolUse", "PreCompact")
+_MIXED_EVENTS  = ("TaskStart", "TaskResume")
+
+def _infer_auto_approve(approval_by_category: dict) -> dict:
+    """카테고리별 승인 현황으로 Auto-Approve 설정을 추론합니다.
+
+    추론 로직:
+    - 해당 카테고리에서 manual=0 이고 auto>0 → 사용자가 그 카테고리 Auto-Approve를 켰을 가능성 높음
+    - 파일편집·명령실행이 모두 auto (manual=0) → YOLO 의심
+    - 파일읽기는 항상 safe이므로 추론에서 제외
+    """
+    inferred: list[str] = []
+    cat_data = dict(approval_by_category)  # defaultdict → dict
+
+    APPROVAL_REQUIRED_CATS = {"파일편집", "명령실행", "브라우저", "MCP서버"}
+
+    for cat, counts in cat_data.items():
+        if cat not in APPROVAL_REQUIRED_CATS:
+            continue
+        if counts.get("auto", 0) > 0 and counts.get("manual", 0) == 0:
+            inferred.append(cat)
+
+    # YOLO 의심: 승인 필요 카테고리 전부 auto (manual 합계 = 0) + auto 합계 > 0
+    total_manual = sum(v.get("manual", 0) for v in cat_data.values())
+    total_auto_needed = sum(
+        v.get("auto", 0) for k, v in cat_data.items() if k in APPROVAL_REQUIRED_CATS
+    )
+    yolo = (total_manual == 0) and (total_auto_needed >= 5)
+
+    return {
+        "auto_approve_by_category": {k: dict(v) for k, v in cat_data.items()},
+        "inferred_auto_approve": inferred,
+        "yolo_mode_suspected": yolo,
+    }
+
+
+def _autonomy_metrics(event_type_counts: dict[str, int]) -> dict:
+    """이벤트 카운트로 자율성 지표를 계산합니다."""
+    h_bd = {e: event_type_counts.get(e, 0) for e in _HUMAN_EVENTS}
+    a_bd = {e: event_type_counts.get(e, 0) for e in _AGENT_EVENTS}
+    m_bd = {e: event_type_counts.get(e, 0) for e in _MIXED_EVENTS}
+    human_cnt = sum(h_bd.values())
+    agent_cnt = sum(a_bd.values())
+    mixed_cnt = sum(m_bd.values())
+    # 혼합(TaskStart·TaskResume)도 사람이 트리거해야 발생하므로 분모에 포함
+    denom = agent_cnt + human_cnt + mixed_cnt
+    return {
+        "human_action_count": human_cnt,
+        "agent_action_count": agent_cnt,
+        "mixed_action_count": mixed_cnt,
+        "autonomy_pct": round(agent_cnt / denom * 100, 1) if denom else 0.0,
+        "human_actions_breakdown": h_bd,
+        "agent_actions_breakdown": a_bd,
+        "mixed_actions_breakdown": m_bd,
+    }
+
+
 def process(events: list[dict]) -> dict:
     """
     raw 이벤트 목록을 받아 대시보드용 집계 데이터로 변환합니다.
@@ -347,7 +579,7 @@ def process(events: list[dict]) -> dict:
         "success_tool_count": 0,
         "write_count": 0, "read_count": 0, "exec_count": 0,
         "test_runs": [], "first_code_ts": None,
-        "file_paths": set(), "file_write_counts": defaultdict(int),
+        "file_paths": set(), "file_write_counts": defaultdict(int), "file_read_counts": defaultdict(int),
         "last_event": "", "last_result": "",
         "event_count": 0,
     })
@@ -358,13 +590,25 @@ def process(events: list[dict]) -> dict:
     model_usage: dict[str, int] = defaultdict(int)
     auto_approval_by_tool: dict[str, int] = defaultdict(int)
     manual_approval_by_tool: dict[str, int] = defaultdict(int)
+    manual_approval_items: list[dict] = []
+    human_interaction_items: list[dict] = []
+    # 카테고리별 집계: {카테고리: {auto, manual, safe}}
+    approval_by_category: dict[str, dict] = defaultdict(lambda: {"auto": 0, "manual": 0, "safe": 0})
     safe_tools_by_tool: dict[str, int] = defaultdict(int)
     # 모델별 토큰 집계 (PreCompact 기반)
     token_usage: dict[str, dict] = defaultdict(lambda: {
         "tokens_in": 0, "tokens_out": 0,
         "tokens_in_cache": 0, "tokens_out_cache": 0, "compact_count": 0,
     })
+    # 모델별 텍스트 볼륨 집계 (토큰 간접 추정용)
+    # {model_slug: {"in_chars": int, "out_chars": int}}
+    model_text_volume: dict[str, dict] = defaultdict(lambda: {"in_chars": 0, "out_chars": 0})
     last_task_id: str | None = None
+    # TaskCancel 직후 UserPromptSubmit 짝 매칭용: taskId → deque of {idx, ts}
+    pending_cancel: dict[str, deque] = defaultdict(deque)
+    cancel_followups: list[dict] = []
+    # 재프롬프트 후 결과 대기 중: taskId → list of indices into cancel_followups
+    pending_reprompt: dict[str, list] = defaultdict(list)
 
     for idx, ev in enumerate(events, start=1):
         tid: str = ev.get("taskId") or ""
@@ -389,13 +633,34 @@ def process(events: list[dict]) -> dict:
         # Auto-Approve 추적: PreToolUse의 requires_approval 필드 분석
         if event == "PreToolUse" and tool_name:
             ra = params.get("requiresApproval") or params.get("requires_approval")
+            cat = _tool_category(tool_name)
             if ra is False or ra == "false":
                 auto_approval_by_tool[tool_name] += 1
+                approval_by_category[cat]["auto"] += 1
             elif ra is True or ra == "true":
                 manual_approval_by_tool[tool_name] += 1
+                approval_by_category[cat]["manual"] += 1
+                # 세부 컨텍스트 수집
+                task_ctx = ""
+                if tid and tid in tasks:
+                    raw_ctx = tasks[tid]["initial_task"] or (tasks[tid]["prompts"][0] if tasks[tid]["prompts"] else "")
+                    task_ctx = (raw_ctx[:200] + "…") if len(raw_ctx) > 200 else raw_ctx
+                _cmd = command[:300] if command else ""
+                _content = (params.get("content", "") or "")[:200]
+                manual_approval_items.append({
+                    "event_idx": idx,
+                    "taskId": tid or "",
+                    "ts_kst": _kst(ts),
+                    "tool_name": tool_name,
+                    "command": _cmd,
+                    "file_path": path_val,
+                    "task_context": task_ctx,
+                    "content_preview": _content,
+                })
             else:
-                # requires_approval 필드 없음 = 항상 자동 허용되는 안전 도구
+                # requires_approval 필드 없음 = 항상 자동 허용되는 안전 도구(파일읽기 등)
                 safe_tools_by_tool[tool_name] += 1
+                approval_by_category[cat]["safe"] += 1
         if provider and slug:
             model_usage[f"{provider}/{slug}"] += 1
 
@@ -484,6 +749,30 @@ def process(events: list[dict]) -> dict:
             last_task_id = tid
         elif event == "UserPromptSubmit":
             p = payload.get("prompt", "")
+            # 텍스트 볼륨: 사용자 프롬프트 → 입력 텍스트
+            if tid and t.get("model_slug"):
+                model_text_volume[t["model_slug"]]["in_chars"] += len(p)
+            # 취소 직후 후속 프롬프트 짝 매칭
+            if tid and pending_cancel[tid]:
+                c = pending_cancel[tid].popleft()
+                gap: float | None = (
+                    round((ts - c["ts"]) / 1000, 2)
+                    if ts is not None and c["ts"] is not None
+                    else None
+                )
+                cancel_followups.append({
+                    "taskId": tid,
+                    "cancel_event_idx": c["idx"],
+                    "prompt_event_idx": idx,
+                    "cancel_ts_kst": _kst(c["ts"]),
+                    "prompt_ts_kst": _kst(ts),
+                    "gap_sec": gap,
+                    "cancel_context": c.get("context", ""),
+                    "prompt_text": (p[:500] + "…") if len(p) > 500 else p,
+                    "follow_result": "",
+                    "follow_status": "진행중",
+                })
+                pending_reprompt[tid].append(len(cancel_followups) - 1)
             if not t["first_prompt"]:
                 t["first_prompt"] = p
             t["prompts"].append(p)
@@ -493,12 +782,30 @@ def process(events: list[dict]) -> dict:
         elif event == "TaskCancel":
             t["canceled"] = True
             t["cancel_count"] += 1
+            if tid:
+                # 재프롬프트 후 또 취소된 경우 → "재취소" 처리
+                for cf_idx in pending_reprompt[tid]:
+                    cancel_followups[cf_idx]["follow_status"] = "재취소"
+                pending_reprompt[tid].clear()
+                # 취소 시점의 마지막 작업 내용 캡처
+                _last = t["prompts"][-1] if t["prompts"] else (t["initial_task"] or "")
+                _ctx = (_last[:500] + "…") if len(_last) > 500 else _last
+                pending_cancel[tid].append({"idx": idx, "ts": ts, "context": _ctx})
         elif event == "TaskComplete":
             t["completed"] = True
             t["complete_count"] += 1
-            t["last_result"] = str(
+            result_text = str(
                 (payload.get("taskMetadata") or {}).get("result", "")
-            )[:200]
+            )[:300]
+            t["last_result"] = result_text[:200]
+            # 텍스트 볼륨: 태스크 완료 응답 → 출력 텍스트
+            if tid and t.get("model_slug"):
+                model_text_volume[t["model_slug"]]["out_chars"] += len(result_text)
+            if tid:
+                for cf_idx in pending_reprompt[tid]:
+                    cancel_followups[cf_idx]["follow_result"] = result_text
+                    cancel_followups[cf_idx]["follow_status"] = "완료"
+                pending_reprompt[tid].clear()
         elif event == "PreToolUse":
             t["pre_tool_count"] += 1
             if tool_name and tool_name not in t["tools_used"]:
@@ -507,12 +814,19 @@ def process(events: list[dict]) -> dict:
             t["post_tool_count"] += 1
             if success is True:
                 t["success_tool_count"] += 1
+            # 텍스트 볼륨: 도구 파라미터(입력) + 결과(모델이 받는 컨텍스트)
+            if tid and t.get("model_slug"):
+                params_text = str(payload.get("parameters", ""))
+                result_text = str(payload.get("result", ""))
+                model_text_volume[t["model_slug"]]["in_chars"] += len(params_text) + len(result_text)
             if tool_name == "write_to_file":
                 t["write_count"] += 1
                 if path_val:
                     t["file_write_counts"][path_val] += 1
             if tool_name in ("read_file", "read_file_content"):
                 t["read_count"] += 1
+                if path_val:
+                    t["file_read_counts"][path_val] += 1
             if tool_name == "execute_command":
                 t["exec_count"] += 1
                 if TEST_CMD_RE.search(command):
@@ -528,6 +842,47 @@ def process(events: list[dict]) -> dict:
             if path_val:
                 t["file_paths"].add(path_val)
 
+            # 사람이 직접 응답해야 하는 상호작용 수집 (ask_followup_question / plan_mode_respond)
+            if tool_name in ("ask_followup_question", "plan_mode_respond") and success is True:
+                params_inner: dict = payload.get("parameters") or {}
+                result_str: str = str(payload.get("result", ""))
+
+                if tool_name == "ask_followup_question":
+                    itype = "ask_followup"
+                    agent_msg = str(params_inner.get("question", ""))[:300]
+                    opts_raw = params_inner.get("options", "[]")
+                    try:
+                        opts: list[str] = json.loads(opts_raw) if isinstance(opts_raw, str) else (opts_raw or [])
+                    except Exception:
+                        opts = []
+                    # result 형식: <answer>...</answer>
+                    import re as _re
+                    m_ans = _re.search(r"<answer>(.*?)</answer>", result_str, _re.DOTALL)
+                    user_ans = m_ans.group(1).strip()[:300] if m_ans else result_str.strip()[:300]
+                else:  # plan_mode_respond
+                    itype = "plan_mode"
+                    agent_msg = str(params_inner.get("response", ""))[:300]
+                    opts = []
+                    import re as _re
+                    m_msg = _re.search(r"<user_message>(.*?)</user_message>", result_str, _re.DOTALL)
+                    user_ans = m_msg.group(1).strip()[:300] if m_msg else result_str.strip()[:300]
+
+                task_ctx = ""
+                if tid and tid in tasks:
+                    raw_ctx = tasks[tid]["initial_task"] or (tasks[tid]["prompts"][0] if tasks[tid]["prompts"] else "")
+                    task_ctx = (raw_ctx[:200] + "…") if len(raw_ctx) > 200 else raw_ctx
+
+                human_interaction_items.append({
+                    "event_idx": idx,
+                    "taskId": tid or "",
+                    "ts_kst": _kst(ts),
+                    "interaction_type": itype,
+                    "agent_message": agent_msg,
+                    "options": opts,
+                    "user_answer": user_ans,
+                    "task_context": task_ctx,
+                })
+
     reviewed_shas = {
         p.stem for p in FINAL_DIR.glob("*.marker")
     } if FINAL_DIR.exists() else set()
@@ -535,23 +890,31 @@ def process(events: list[dict]) -> dict:
     task_list: list[dict] = []
     total_starts = 0
     total_resumes = 0
+    tasks_ended_canceled = 0
     total_writes = 0
     total_reads = 0
     unique_written_files: set[str] = set()
     rework_file_count = 0
+    global_file_write_counts: dict[str, int] = defaultdict(int)
+    global_file_read_counts: dict[str, int] = defaultdict(int)
 
     for tid, t in tasks.items():
         if t["start_ts"] is None:
             continue
         total_starts += 1
+        if t["canceled"]:
+            tasks_ended_canceled += 1
         if t["resumed"]:
             total_resumes += 1
         total_writes += t["write_count"]
         total_reads += t["read_count"]
         for fp, cnt in t["file_write_counts"].items():
             unique_written_files.add(fp)
+            global_file_write_counts[fp] += cnt
             if cnt > 1:
                 rework_file_count += 1
+        for fp, cnt in t["file_read_counts"].items():
+            global_file_read_counts[fp] += cnt
 
         dur_ms = (t["end_ts"] - t["start_ts"]) if t["start_ts"] and t["end_ts"] else None
         code_ms = (
@@ -591,6 +954,7 @@ def process(events: list[dict]) -> dict:
             "test_total_sec": _sec(test_ms),
             "test_pct_of_duration": test_pct,
             "resume_count": t["resume_count"],
+            "cancel_count": t["cancel_count"],
             "model": f"{t['model_provider']}/{t['model_slug']}",
             "tools_used": t["tools_used"],
             "file_paths": sorted(t["file_paths"])[:10],
@@ -601,12 +965,44 @@ def process(events: list[dict]) -> dict:
 
     n_unique = len(unique_written_files)
     sorted_models = sorted(model_usage.items(), key=lambda x: -x[1])
+
+    # ── 토큰 추정 계산 ────────────────────────────────────────────────────────
+    # 텍스트 볼륨 기반 간접 추정: 4 chars ≈ 1 token (평균)
+    CHARS_PER_TOKEN = 4
+    est_by_model: list[dict] = []
+    est_total_tokens = 0
+    est_total_cost_usd = 0.0
+    for model_slug, vol in model_text_volume.items():
+        in_tokens  = vol["in_chars"]  // CHARS_PER_TOKEN
+        out_tokens = vol["out_chars"] // CHARS_PER_TOKEN
+        # 출력량 추정: out_chars가 매우 작으면 in_tokens의 15%로 보정
+        if out_tokens < in_tokens * 0.05:
+            out_tokens = max(out_tokens, in_tokens // 7)
+        price_key, price = _model_price(model_slug)
+        cost = (
+            in_tokens  / 1_000_000 * price["input"]
+            + out_tokens / 1_000_000 * price["output"]
+        )
+        est_by_model.append({
+            "model": model_slug,
+            "price_key": price_key,
+            "price_input": price["input"],
+            "price_output": price["output"],
+            "tokens_in": in_tokens,
+            "tokens_out": out_tokens,
+            "cost_usd": round(cost, 4),
+        })
+        est_total_tokens += in_tokens + out_tokens
+        est_total_cost_usd += cost
+    est_by_model.sort(key=lambda x: -x["cost_usd"])
+    est_total_cost_usd = round(est_total_cost_usd, 4)
     top_model = sorted_models[0][0] if sorted_models else ""
     return {
         "summary": {
             "total_events": len(events),
             "total_git_events": sum(1 for e in events if e.get("event") == "GitCommit"),
             "total_hook_events": sum(1 for e in events if e.get("event") and e.get("event") != "GitCommit"),
+            "event_type_counts": dict(event_type_counts),
             "total_tasks": total_starts,
             "total_resumes": total_resumes,
             "rework_rate": round(total_resumes / total_starts * 100, 1) if total_starts else 0,
@@ -618,15 +1014,32 @@ def process(events: list[dict]) -> dict:
             "read_write_ratio": round(total_reads / max(total_writes, 1), 2),
             "efficiency_score": round(
                 (1 - (rework_file_count / n_unique if n_unique else 0))
-                / max(total_reads / max(total_writes, 1), 0.1),
+                * (total_reads / max(total_writes, 1)),
                 2
             ),
             "unique_written_files": n_unique,
+            "rework_files": sorted(
+                [{"file": fp, "write_count": cnt} for fp, cnt in global_file_write_counts.items() if cnt > 1],
+                key=lambda x: -x["write_count"]
+            ),
+            "top_written_files": sorted(
+                [{"file": fp, "count": cnt} for fp, cnt in global_file_write_counts.items()],
+                key=lambda x: -x["count"]
+            )[:30],
+            "top_read_files": sorted(
+                [{"file": fp, "count": cnt} for fp, cnt in global_file_read_counts.items()],
+                key=lambda x: -x["count"]
+            )[:30],
+            "est_total_tokens": est_total_tokens,
+            "est_total_cost_usd": est_total_cost_usd,
+            "est_by_model": est_by_model,
             "auto_approved_count": sum(auto_approval_by_tool.values()),
             "manual_approval_count": sum(manual_approval_by_tool.values()),
             "auto_approval_by_tool": dict(auto_approval_by_tool),
             "manual_approval_by_tool": dict(manual_approval_by_tool),
             "safe_tools_count": sum(safe_tools_by_tool.values()),
+            "safe_tools_by_tool": dict(safe_tools_by_tool),
+            **_infer_auto_approve(approval_by_category),
             "model_usage": dict(model_usage),
             "top_model": top_model,
             "unique_models": len(model_usage),
@@ -636,9 +1049,20 @@ def process(events: list[dict]) -> dict:
             "total_tokens_in_cache": sum(v["tokens_in_cache"]  for v in token_usage.values()),
             "total_tokens_out_cache":sum(v["tokens_out_cache"] for v in token_usage.values()),
             "compact_count":         sum(v["compact_count"]    for v in token_usage.values()),
+            "total_task_cancel_events": event_type_counts.get("TaskCancel", 0),
+            "tasks_ended_canceled": tasks_ended_canceled,
+            "task_cancel_rate_pct": round(
+                tasks_ended_canceled / total_starts * 100, 1
+            ) if total_starts else 0.0,
+            "post_cancel_prompt_pairs": len(cancel_followups),
+            # ── 자율성 지표 ──
+            **_autonomy_metrics(event_type_counts),
         },
         "tasks": task_list,
         "events": event_list,
+        "cancel_followups": cancel_followups,
+        "manual_approval_items": manual_approval_items,
+        "human_interaction_items": human_interaction_items,
         "counts": {
             "event_types": [
                 {"name": k, "count": v}

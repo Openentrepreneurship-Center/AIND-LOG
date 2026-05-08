@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardData } from './types'
 import SummaryCards from './components/SummaryCards'
 import TaskTable from './components/TaskTable'
@@ -11,11 +11,12 @@ import SimilarityFirstLast from './components/SimilarityFirstLast'
 import SimilarityProjectView from './components/SimilarityProjectView'
 import RepoTreePicker from './components/RepoTreePicker'
 
+
 type Tab = 'overview' | 'similarity' | 'commits' | 'events'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'overview',   label: '개요',   icon: '◈' },
-  { id: 'similarity', label: '유사도 분석', icon: '◎' },
+  { id: 'similarity', label: 'AI코드 Quality', icon: '◎' },
   { id: 'commits',    label: '커밋',   icon: '⊙' },
   { id: 'events',     label: '이벤트 로그', icon: '≡' },
 ]
@@ -29,7 +30,16 @@ export default function App() {
     'src/main/java/com/backend/domain/user/service/UserService.java'
   )
   const [simMode, setSimMode] = useState<'file' | 'project'>('file')
+  const [isDark, setIsDark] = useState(true)
   const esRef = useRef<EventSource | null>(null)
+
+  const toggleTheme = useCallback(() => {
+    setIsDark(prev => {
+      const next = !prev
+      document.documentElement.classList.toggle('light', !next)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     const es = new EventSource('/api/stream')
@@ -83,6 +93,16 @@ export default function App() {
           {lastUpdated && (
             <span className="text-gray-600 text-xs hidden lg:block">갱신 {lastUpdated}</span>
           )}
+
+          {/* 테마 토글 */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+            title={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {isDark ? '☀' : '🌙'} {isDark ? 'Light' : 'Dark'}
+          </button>
+
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${
             connected
               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -106,7 +126,14 @@ export default function App() {
             {/* ── 개요 탭 ── */}
             {tab === 'overview' && (
               <div className="space-y-5 max-w-7xl mx-auto">
-                <SummaryCards summary={data.summary} />
+                <SummaryCards
+                  summary={data.summary}
+                  cancelFollowups={data.cancel_followups ?? []}
+                  manualApprovalItems={data.manual_approval_items ?? []}
+                  humanInteractionItems={data.human_interaction_items ?? []}
+                  tasks={data.tasks ?? []}
+                  eventTypeCounts={data.counts?.event_types ?? []}
+                />
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
                   <div className="xl:col-span-2">
                     <TaskTable tasks={data.tasks} />

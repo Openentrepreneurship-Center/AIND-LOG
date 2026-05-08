@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Task } from '../types'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -32,16 +32,15 @@ export default function TaskTable({ tasks }: Props) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-800">
-              {['시작시각', '종료시각', '상태', '소요(초)', '코드생성(초)', '테스트(회)', '재개', '첫 요청'].map(h => (
+              {['시작시각', '종료시각', '상태', '소요(초)', '코드생성(초)', '테스트(회)', '재개', '취소', '첫 요청'].map(h => (
                 <th key={h} className="text-left px-4 py-2 text-gray-500 font-medium whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {tasks.map(t => (
-              <>
+              <Fragment key={t.taskId}>
                 <tr
-                  key={t.taskId}
                   onClick={() => setExpanded(expanded === t.taskId ? null : t.taskId)}
                   className={`border-b border-gray-800/60 cursor-pointer transition-colors ${
                     expanded === t.taskId ? 'bg-gray-800/50' : 'hover:bg-gray-800/30'
@@ -62,14 +61,19 @@ export default function TaskTable({ tasks }: Props) {
                       : <span className="text-gray-600">-</span>}
                   </td>
                   <td className="px-4 py-2.5 text-gray-300">{t.resume_count > 0 ? t.resume_count : '-'}</td>
+                  <td className="px-4 py-2.5">
+                    {(t.cancel_count ?? 0) > 0
+                      ? <span className="text-rose-400 font-semibold">{t.cancel_count}</span>
+                      : <span className="text-gray-600">-</span>}
+                  </td>
                   <td className="px-4 py-2.5 text-gray-400 max-w-xs truncate">
                     {t.initial_task || t.first_prompt || '-'}
                   </td>
                 </tr>
 
                 {expanded === t.taskId && (
-                  <tr key={`${t.taskId}-detail`} className="border-b border-gray-800">
-                    <td colSpan={8} className="px-6 py-4 bg-gray-800/30">
+                  <tr className="border-b border-gray-800">
+                    <td colSpan={9} className="px-6 py-4 bg-gray-800/30">
                       <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3">
                         <Row label="Task ID" value={<span className="font-mono">{t.taskId}</span>} />
                         <Row label="모델" value={t.model} />
@@ -77,6 +81,7 @@ export default function TaskTable({ tasks }: Props) {
                         <Row label="write / read / exec" value={`${t.write_count} / ${t.read_count} / ${t.exec_count}`} />
                         <Row label="사용 도구 목록" value={t.tools_used.join(', ') || '-'} />
                         <Row label="재개 횟수" value={t.resume_count} />
+                        <Row label="TaskCancel 횟수" value={t.cancel_count ?? 0} />
                         <Row
                           label="테스트 총 소요(초) / 전체 비중"
                           value={`${t.test_total_sec ?? '-'}초 / ${t.test_pct_of_duration != null ? t.test_pct_of_duration + '%' : '-'}`}
@@ -98,7 +103,7 @@ export default function TaskTable({ tasks }: Props) {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
