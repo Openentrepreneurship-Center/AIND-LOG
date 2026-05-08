@@ -29,7 +29,7 @@ function GaugeRing({ value, color, size = 48 }: { value: number; color: string; 
   const circ = 2 * Math.PI * r
   return (
     <svg width={size} height={size} className="shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1f2937" strokeWidth={6} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#cbd5e1" strokeWidth={6} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
         strokeDasharray={circ} strokeDashoffset={circ*(1-value)} strokeLinecap="round"
         transform={`rotate(-90 ${size/2} ${size/2})`}
@@ -66,12 +66,12 @@ function sizeLabel(n: number) {
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs shadow-xl">
-      <p className="text-gray-400 font-mono mb-2">{label}</p>
+    <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs shadow-xl">
+      <p className="text-slate-600 font-mono mb-2">{label}</p>
       {payload.map(p => (
         <div key={p.name} className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-gray-400">{LAYER_LABELS[p.name as Layer] ?? p.name}</span>
+          <span className="text-slate-600">{LAYER_LABELS[p.name as Layer] ?? p.name}</span>
           <span className="font-bold font-mono ml-auto" style={{ color: p.color }}>
             {(p.value * 100).toFixed(1)}%
           </span>
@@ -92,24 +92,24 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
       {/* 메타 */}
       <div className="grid grid-cols-2 gap-3 text-xs">
         {r.prev_sha && (
-          <div className="bg-gray-800/50 rounded-lg px-3 py-2 col-span-2">
-            <p className="text-gray-500 mb-0.5">비교 커밋</p>
-            <p className="font-mono text-gray-400">
-              <span className="text-gray-500">{r.prev_sha_short}</span>
-              <span className="mx-2 text-gray-700">→</span>
+          <div className="bg-slate-100 rounded-lg px-3 py-2 col-span-2">
+            <p className="text-slate-500 mb-0.5">비교 커밋</p>
+            <p className="font-mono text-slate-600">
+              <span className="text-slate-500">{r.prev_sha_short}</span>
+              <span className="mx-2 text-slate-600">→</span>
               <span className="text-blue-400">{r.sha_short}</span>
             </p>
           </div>
         )}
-        <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-          <p className="text-gray-500 mb-0.5">변경 파일</p>
-          <p className="text-white font-bold">{r.files_changed} / {r.total_files}개 소스파일</p>
+        <div className="bg-slate-100 rounded-lg px-3 py-2">
+          <p className="text-slate-500 mb-0.5">변경 파일</p>
+          <p className="text-slate-900 font-bold">{r.files_changed} / {r.total_files}개 소스파일</p>
         </div>
-        <div className="bg-gray-800/50 rounded-lg px-3 py-2">
-          <p className="text-gray-500 mb-0.5">변경 크기</p>
-          <p className="text-white font-bold">
+        <div className="bg-slate-100 rounded-lg px-3 py-2">
+          <p className="text-slate-500 mb-0.5">변경 크기</p>
+          <p className="text-slate-900 font-bold">
             {sizeLabel(r.changed_size)} / {sizeLabel(r.total_size)}
-            <span className="text-gray-500 text-xs ml-1">
+            <span className="text-slate-500 text-xs ml-1">
               ({Math.round(r.changed_size / Math.max(r.total_size, 1) * 100)}%)
             </span>
           </p>
@@ -118,25 +118,25 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
 
       {/* 두 점수 비교 */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-gray-800/40 border border-gray-700/50 p-3">
-          <p className="text-xs text-gray-500 mb-2">프로젝트 전체 유사도</p>
+        <div className="rounded-xl bg-slate-100/95 border border-slate-200/50 p-3">
+          <p className="text-xs text-slate-500 mb-2">프로젝트 전체 유사도</p>
           <div className="flex items-center gap-2">
             <GaugeRing value={avg} color={g.color} size={52} />
             <div>
               <p className="text-lg font-black font-mono" style={{ color: g.color }}>{Math.round(avg*100)}%</p>
               <p className="text-xs" style={{ color: g.color }}>{g.label}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">변경 비중 반영</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">변경 비중 반영</p>
             </div>
           </div>
         </div>
-        <div className="rounded-xl bg-gray-800/40 border border-gray-700/50 p-3">
-          <p className="text-xs text-gray-500 mb-2">변경 파일만 평균</p>
+        <div className="rounded-xl bg-slate-100/95 border border-slate-200/50 p-3">
+          <p className="text-xs text-slate-500 mb-2">변경 파일만 평균</p>
           <div className="flex items-center gap-2">
             <GaugeRing value={rawAvg} color={gRaw.color} size={52} />
             <div>
               <p className="text-lg font-black font-mono" style={{ color: gRaw.color }}>{Math.round(rawAvg*100)}%</p>
               <p className="text-xs" style={{ color: gRaw.color }}>{gRaw.label}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">변경 파일 기준</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">변경 파일 기준</p>
             </div>
           </div>
         </div>
@@ -152,18 +152,18 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
             </span>
             <div className="flex-1 grid grid-cols-2 gap-2">
               <div>
-                <p className="text-[10px] text-gray-600">전체</p>
+                <p className="text-[10px] text-slate-500">전체</p>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${r.scores[layer]*100}%`, background: LAYER_COLORS[layer] }} />
                   </div>
                   <ScoreBadge value={r.scores[layer]} />
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-gray-600">변경파일</p>
+                <p className="text-[10px] text-slate-500">변경파일</p>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full rounded-full opacity-60" style={{ width: `${r.raw_scores[layer]*100}%`, background: LAYER_COLORS[layer] }} />
                   </div>
                   <ScoreBadge value={r.raw_scores[layer]} />
@@ -186,6 +186,8 @@ export default function SimilarityProjectView() {
   const [scoreMode, setScoreMode] = useState<'project' | 'raw'>('project')
   const [loaded, setLoaded] = useState(false)
 
+  const autoScreenshot = import.meta.env.VITE_SCREENSHOT_BRANCH === '1'
+
   const load = (refresh = false) => {
     setLoading(true); setError('')
     fetch(`/api/similarity/project${refresh ? '?refresh=true' : ''}`)
@@ -197,7 +199,11 @@ export default function SimilarityProjectView() {
       .catch(e => { setError(e.message); setLoading(false) })
   }
 
-  useEffect(() => { /* lazy load — 버튼 클릭 시 */ }, [])
+  useEffect(() => {
+    if (autoScreenshot) load(false)
+    // 스크린샷 모드에서만 자동 로드 (데모 데이터)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 1회
+  }, [])
 
   const chartData = results
     .filter(r => r.prev_sha !== '')
@@ -215,18 +221,18 @@ export default function SimilarityProjectView() {
 
   return (
     <>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
         {/* 헤더 */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-400" />
               프로젝트 전체 유사도
               {results.length > 0 && (
-                <span className="text-xs font-normal text-gray-500">{results.length}개 커밋</span>
+                <span className="text-xs font-normal text-slate-500">{results.length}개 커밋</span>
               )}
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               전체 소스 파일 변화율 · 낮을수록 해당 커밋에서 프로젝트가 크게 변경됨
             </p>
           </div>
@@ -234,11 +240,11 @@ export default function SimilarityProjectView() {
           <div className="flex items-center gap-2">
             {/* 점수 모드 토글 */}
             {loaded && (
-              <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs">
                 {(['project', 'raw'] as const).map(mode => (
                   <button key={mode} onClick={() => setScoreMode(mode)}
                     className={`px-3 py-1.5 transition-colors ${
-                      scoreMode === mode ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                      scoreMode === mode ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:text-slate-700'
                     }`}>
                     {mode === 'project' ? '전체 가중' : '변경파일만'}
                   </button>
@@ -257,19 +263,19 @@ export default function SimilarityProjectView() {
 
         {/* 안내 메시지 (미로드) */}
         {!loaded && !loading && !error && (
-          <div className="flex flex-col items-center justify-center h-48 gap-3 text-gray-600 bg-gray-800/20 rounded-xl border border-gray-800/50">
+          <div className="flex flex-col items-center justify-center h-48 gap-3 text-slate-500 bg-slate-100/20 rounded-xl border border-slate-200/50">
             <span className="text-3xl">◎</span>
             <p className="text-sm">분석 시작 버튼을 눌러 프로젝트 전체 유사도를 계산합니다</p>
-            <p className="text-xs text-gray-700">커밋 수에 따라 수 초 ~ 수십 초 소요</p>
+            <p className="text-xs text-slate-600">커밋 수에 따라 수 초 ~ 수십 초 소요</p>
           </div>
         )}
 
         {loading && (
-          <div className="flex items-center justify-center h-48 gap-3 text-gray-500">
-            <div className="w-5 h-5 border-2 border-gray-700 border-t-rose-400 rounded-full animate-spin" />
+          <div className="flex items-center justify-center h-48 gap-3 text-slate-500">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-rose-400 rounded-full animate-spin" />
             <div>
               <p className="text-sm">프로젝트 유사도 계산 중…</p>
-              <p className="text-xs text-gray-700 mt-1">모든 커밋의 변경 파일을 L1~L4로 측정합니다</p>
+              <p className="text-xs text-slate-600 mt-1">모든 커밋의 변경 파일을 L1~L4로 측정합니다</p>
             </div>
           </div>
         )}
@@ -281,8 +287,8 @@ export default function SimilarityProjectView() {
         {!loading && !error && loaded && results.length > 0 && (
           <>
             {/* 추이 차트 */}
-            <div className="bg-gray-950/50 rounded-lg p-4 border border-gray-800">
-              <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+            <div className="bg-slate-50/50 rounded-lg p-4 border border-slate-200">
+              <div className="flex items-center justify-between mb-2 text-xs text-slate-500">
                 <span>커밋별 프로젝트 유사도 추이 ({scoreMode === 'project' ? '전체 가중' : '변경 파일만'})</span>
                 <div className="flex gap-3">
                   {LAYERS.map(l => (
@@ -295,13 +301,13 @@ export default function SimilarityProjectView() {
               </div>
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={chartData} margin={{ top: 4, right: 16, left: -10, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 10 }}
-                    tickLine={{ stroke: '#374151' }} axisLine={{ stroke: '#374151' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }}
+                    tickLine={{ stroke: '#cbd5e1' }} axisLine={{ stroke: '#cbd5e1' }} />
                   <YAxis domain={[0, 1]} tickFormatter={v => `${Math.round(v*100)}%`}
-                    tick={{ fill: '#6b7280', fontSize: 10 }}
-                    tickLine={{ stroke: '#374151' }} axisLine={{ stroke: '#374151' }} />
-                  <ReferenceLine y={1} stroke="#374151" strokeDasharray="4 2" />
+                    tick={{ fill: '#64748b', fontSize: 10 }}
+                    tickLine={{ stroke: '#cbd5e1' }} axisLine={{ stroke: '#cbd5e1' }} />
+                  <ReferenceLine y={1} stroke="#cbd5e1" strokeDasharray="4 2" />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend formatter={v => <span style={{ color: '#9ca3af', fontSize: 10 }}>{LAYER_LABELS[v as Layer] ?? v}</span>} />
                   {LAYERS.map(l => (
@@ -315,8 +321,8 @@ export default function SimilarityProjectView() {
 
             {/* 커밋 목록 */}
             <div className="overflow-y-auto max-h-[360px] space-y-0"
-                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#374151 transparent' }}>
-              <p className="text-xs text-gray-600 mb-2">항목 클릭 → 상세 모달</p>
+                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+              <p className="text-xs text-slate-500 mb-2">항목 클릭 → 상세 모달</p>
               {results.map((r, i) => {
                 const isFirst = r.prev_sha === ''
                 const avg = avgScores(scoreMode === 'project' ? r.scores : r.raw_scores)
@@ -327,29 +333,29 @@ export default function SimilarityProjectView() {
                     <div
                       onClick={() => !isFirst && setModalIdx(i)}
                       className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-colors
-                        ${!isFirst ? 'cursor-pointer hover:bg-gray-800/50' : ''}`}
+                        ${!isFirst ? 'cursor-pointer hover:bg-slate-100' : ''}`}
                     >
                       {/* 타임라인 */}
                       <div className={`w-2 h-2 rounded-full shrink-0
-                        ${isFirst ? 'bg-emerald-500' : r.files_changed > 0 ? 'bg-amber-400' : 'bg-gray-700'}`} />
+                        ${isFirst ? 'bg-emerald-500' : r.files_changed > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} />
 
                       {/* 커밋 정보 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-gray-500">{r.sha_short}</span>
+                          <span className="font-mono text-xs text-slate-500">{r.sha_short}</span>
                           {isFirst && <span className="text-[10px] px-1.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">시작</span>}
                           {!isFirst && r.files_changed > 0 && (
                             <span className="text-[10px] text-amber-400">{r.files_changed}개 변경</span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{r.message}</p>
+                        <p className="text-xs text-slate-600 truncate mt-0.5">{r.message}</p>
                       </div>
 
                       {/* 변경 비중 바 */}
                       {!isFirst && (
                         <div className="w-16 shrink-0 hidden sm:block">
-                          <p className="text-[10px] text-gray-600 mb-0.5">{changePct}% 변경</p>
-                          <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                          <p className="text-[10px] text-slate-500 mb-0.5">{changePct}% 변경</p>
+                          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full bg-amber-500/60 rounded-full" style={{ width: `${Math.min(changePct, 100)}%` }} />
                           </div>
                         </div>
@@ -365,7 +371,7 @@ export default function SimilarityProjectView() {
                         </div>
                       )}
                     </div>
-                    {i < results.length - 1 && <div className="ml-[7px] w-0.5 h-2 bg-gray-800" />}
+                    {i < results.length - 1 && <div className="ml-[7px] w-0.5 h-2 bg-slate-100" />}
                   </div>
                 )
               })}

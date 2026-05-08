@@ -25,15 +25,15 @@ function TreeRow({
         role="button"
         onClick={() => isDir ? onToggle(node.path) : onPickFile(node.path)}
         className={`flex items-center gap-1.5 px-2 py-1 cursor-pointer text-xs rounded
-          ${isSelected ? 'bg-violet-500/20 text-violet-200' : 'hover:bg-gray-800/60 text-gray-300'}`}
+          ${isSelected ? 'bg-violet-500/20 text-violet-200' : 'hover:bg-slate-100 text-slate-700'}`}
         style={{ paddingLeft: 8 + depth * 14 }}
       >
         {isDir ? (
-          <span className="text-gray-500 w-3 inline-block text-[10px]">{isOpen ? '▼' : '▶'}</span>
+          <span className="text-slate-500 w-3 inline-block text-[10px]">{isOpen ? '▼' : '▶'}</span>
         ) : (
           <span className="w-3 inline-block" />
         )}
-        <span className={isDir ? 'text-amber-300/80' : 'text-gray-200 font-mono'}>
+        <span className={isDir ? 'text-amber-300/80' : 'text-slate-800 font-mono'}>
           {isDir ? '📁' : '📄'} {node.name}
         </span>
       </div>
@@ -105,20 +105,20 @@ export default function RepoTreePicker({ value, onSelect }: Props) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-xs text-left hover:border-gray-700 focus:outline-none focus:border-violet-500/60"
+        className="w-full flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-left hover:border-slate-200 focus:outline-none focus:border-violet-500/60"
       >
-        <span className={`truncate font-mono ${value ? 'text-gray-200' : 'text-gray-600'}`}>
+        <span className={`truncate font-mono ${value ? 'text-slate-800' : 'text-slate-500'}`}>
           {value || '분석할 파일을 선택하세요…'}
         </span>
-        <span className="text-gray-500 text-[10px]">
+        <span className="text-slate-500 text-[10px]">
           {loading ? '로딩…' : tree ? `${tree.file_count}개 파일` : ''} {open ? '▲' : '▼'}
         </span>
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 w-full bg-gray-950 border border-gray-800 rounded-lg shadow-2xl max-h-[480px] overflow-auto">
+        <div className="absolute z-30 mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg shadow-2xl max-h-[480px] overflow-auto">
           {loading && (
-            <p className="text-xs text-gray-500 px-3 py-3">파일 트리 불러오는 중…</p>
+            <p className="text-xs text-slate-500 px-3 py-3">파일 트리 불러오는 중…</p>
           )}
           {error && (
             <p className="text-xs text-red-400 px-3 py-3">오류: {error}</p>

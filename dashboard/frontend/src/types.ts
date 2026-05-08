@@ -14,6 +14,12 @@ export interface Summary {
   model_usage: Record<string, number>
   top_model: string
   unique_models: number
+  /** 데모/스크린샷 카드용 (실 API 미제공 시 생략 가능) */
+  consistency_defect_rate?: number
+  contribution_pct?: number
+  automation_pct?: number
+  total_tokens_estimate?: number
+  revenue_contribution_pct?: number
 }
 
 export interface ProjectSimilarityResult {

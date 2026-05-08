@@ -24,7 +24,7 @@ function GaugeRing({ value, color, size = 56 }: { value: number; color: string; 
   const circ = 2 * Math.PI * r
   return (
     <svg width={size} height={size} className="shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1f2937" strokeWidth={6} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#cbd5e1" strokeWidth={6} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
         strokeDasharray={circ} strokeDashoffset={circ*(1-value)} strokeLinecap="round"
         transform={`rotate(-90 ${size/2} ${size/2})`}
@@ -49,15 +49,15 @@ function ScoreBar({ layer, value, sub }: { layer: Layer; value: number; sub?: st
           <GaugeRing value={value} color={m.color} size={40} />
           <div>
             <p className="text-xs font-semibold" style={{ color: m.color }}>{m.label}</p>
-            <p className="text-[10px] text-gray-600">{m.desc}</p>
+            <p className="text-[10px] text-slate-500">{m.desc}</p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-base font-black font-mono" style={{ color: g.color }}>{Math.round(value*100)}%</p>
-          {sub && <p className="text-[10px] text-gray-600 font-mono">{sub}</p>}
+          {sub && <p className="text-[10px] text-slate-500 font-mono">{sub}</p>}
         </div>
       </div>
-      <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
         <div className="h-full rounded-full" style={{ width: `${value*100}%`, background: m.color }} />
       </div>
     </div>
@@ -90,19 +90,19 @@ export default function SimilarityFirstLast({ file }: Props) {
   const sizeKb = (n: number) => n < 1024 ? `${n}B` : `${(n/1024).toFixed(1)}KB`
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+    <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-rose-400" />
           첫 커밋 ↔ 마지막 커밋 비교
         </h2>
-        <p className="text-xs text-gray-500 mt-0.5">전체 개발 기간 동안 코드가 얼마나 달라졌는가</p>
+        <p className="text-xs text-slate-500 mt-0.5">전체 개발 기간 동안 코드가 얼마나 달라졌는가</p>
       </div>
 
-      {!file && <p className="text-gray-600 text-sm text-center py-8">파일을 선택하세요.</p>}
+      {!file && <p className="text-slate-500 text-sm text-center py-8">파일을 선택하세요.</p>}
       {loading && (
-        <div className="flex items-center justify-center h-32 gap-2 text-gray-500 text-sm">
-          <div className="w-4 h-4 border-2 border-gray-700 border-t-rose-400 rounded-full animate-spin" />
+        <div className="flex items-center justify-center h-32 gap-2 text-slate-500 text-sm">
+          <div className="w-4 h-4 border-2 border-slate-200 border-t-rose-400 rounded-full animate-spin" />
           계산 중…
         </div>
       )}
@@ -117,23 +117,23 @@ export default function SimilarityFirstLast({ file }: Props) {
             <div className="rounded-lg px-3 py-2.5 bg-emerald-500/5 border border-emerald-500/20">
               <p className="text-[10px] text-emerald-500 font-medium mb-1">최초 커밋</p>
               <p className="font-mono text-xs text-emerald-400">{data.first_sha_short}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">{data.first_message}</p>
-              <p className="text-[10px] text-gray-600 mt-1">{data.first_ts_kst}</p>
-              <p className="text-[10px] font-mono text-gray-600 mt-0.5">{sizeKb(data.first_size)}</p>
+              <p className="text-xs text-slate-600 truncate mt-0.5">{data.first_message}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{data.first_ts_kst}</p>
+              <p className="text-[10px] font-mono text-slate-500 mt-0.5">{sizeKb(data.first_size)}</p>
             </div>
             <div className="rounded-lg px-3 py-2.5 bg-blue-500/5 border border-blue-500/20">
               <p className="text-[10px] text-blue-400 font-medium mb-1">최신 커밋</p>
               <p className="font-mono text-xs text-blue-400">{data.last_sha_short}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">{data.last_message}</p>
-              <p className="text-[10px] text-gray-600 mt-1">{data.last_ts_kst}</p>
-              <p className="text-[10px] font-mono text-gray-600 mt-0.5">{sizeKb(data.last_size)}</p>
+              <p className="text-xs text-slate-600 truncate mt-0.5">{data.last_message}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{data.last_ts_kst}</p>
+              <p className="text-[10px] font-mono text-slate-500 mt-0.5">{sizeKb(data.last_size)}</p>
             </div>
           </div>
 
           {/* 메타 배지 */}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="px-2 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400">
-              총 <b className="text-white">{data.total_commits}</b>개 커밋
+            <span className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600">
+              총 <b className="text-slate-900">{data.total_commits}</b>개 커밋
             </span>
             <span className={`px-2 py-1 rounded-full border text-xs
               ${data.last_size > data.first_size
@@ -156,7 +156,7 @@ export default function SimilarityFirstLast({ file }: Props) {
                       <>
                         <GaugeRing value={a} color={g.color} size={52} />
                         <div>
-                          <p className="text-xs text-gray-500">처음↔끝 직접 비교</p>
+                          <p className="text-xs text-slate-500">처음↔끝 직접 비교</p>
                           <p className="text-sm font-black font-mono" style={{ color: g.color }}>
                             {Math.round(a*100)}% · {g.label}
                           </p>
@@ -181,11 +181,11 @@ export default function SimilarityFirstLast({ file }: Props) {
                     <>
                       <GaugeRing value={a} color={g.color} size={52} />
                       <div>
-                        <p className="text-xs text-gray-500">단계별 평균 유사도</p>
+                        <p className="text-xs text-slate-500">단계별 평균 유사도</p>
                         <p className="text-sm font-black font-mono" style={{ color: g.color }}>
                           {Math.round(a*100)}% · {g.label}
                         </p>
-                        <p className="text-[10px] text-gray-600">낮을수록 커밋마다 큰 변경</p>
+                        <p className="text-[10px] text-slate-500">낮을수록 커밋마다 큰 변경</p>
                       </div>
                     </>
                   )

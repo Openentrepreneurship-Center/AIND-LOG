@@ -1,22 +1,63 @@
-import { useState, useMemo } from 'react'
+import { Fragment, useState, useMemo } from 'react'
 import { EventItem } from '../types'
 
 const EVENT_COLOR: Record<string, { text: string; dot: string; badge: string }> = {
-  TaskStart:        { text: 'text-blue-400',    dot: 'bg-blue-400',    badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  TaskComplete:     { text: 'text-emerald-400', dot: 'bg-emerald-400', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  TaskCancel:       { text: 'text-red-400',     dot: 'bg-red-400',     badge: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  TaskResume:       { text: 'text-amber-400',   dot: 'bg-amber-400',   badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  UserPromptSubmit: { text: 'text-violet-400',  dot: 'bg-violet-400',  badge: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
-  PreToolUse:       { text: 'text-orange-400',  dot: 'bg-orange-400',  badge: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-  PostToolUse:      { text: 'text-teal-400',    dot: 'bg-teal-400',    badge: 'bg-teal-500/10 text-teal-400 border-teal-500/20' },
-  GitCommit:        { text: 'text-pink-400',    dot: 'bg-pink-400',    badge: 'bg-pink-500/10 text-pink-400 border-pink-500/20' },
+  TaskStart: {
+    text: 'text-blue-700',
+    dot: 'bg-blue-600',
+    badge: 'bg-blue-50 text-blue-800 border-blue-300',
+  },
+  TaskComplete: {
+    text: 'text-emerald-700',
+    dot: 'bg-emerald-600',
+    badge: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+  },
+  TaskCancel: {
+    text: 'text-red-700',
+    dot: 'bg-red-600',
+    badge: 'bg-red-50 text-red-800 border-red-300',
+  },
+  TaskResume: {
+    text: 'text-amber-800',
+    dot: 'bg-amber-500',
+    badge: 'bg-amber-50 text-amber-950 border-amber-300',
+  },
+  UserPromptSubmit: {
+    text: 'text-violet-700',
+    dot: 'bg-violet-600',
+    badge: 'bg-violet-50 text-violet-900 border-violet-300',
+  },
+  PreToolUse: {
+    text: 'text-orange-700',
+    dot: 'bg-orange-600',
+    badge: 'bg-orange-50 text-orange-900 border-orange-300',
+  },
+  PostToolUse: {
+    text: 'text-teal-700',
+    dot: 'bg-teal-600',
+    badge: 'bg-teal-50 text-teal-900 border-teal-300',
+  },
+  GitCommit: {
+    text: 'text-pink-700',
+    dot: 'bg-pink-600',
+    badge: 'bg-pink-50 text-pink-900 border-pink-300',
+  },
+  PreCompact: {
+    text: 'text-indigo-700',
+    dot: 'bg-indigo-600',
+    badge: 'bg-indigo-50 text-indigo-900 border-indigo-300',
+  },
 }
-const DEFAULT_COLOR = { text: 'text-gray-300', dot: 'bg-gray-400', badge: 'bg-gray-700 text-gray-300 border-gray-600' }
+const DEFAULT_COLOR = {
+  text: 'text-slate-700',
+  dot: 'bg-slate-500',
+  badge: 'bg-slate-100 text-slate-800 border-slate-300',
+}
 
 function JsonViewer({ data }: { data: unknown }) {
   const text = JSON.stringify(data, null, 2)
   return (
-    <pre className="text-xs text-gray-300 bg-gray-950 rounded-lg p-3 overflow-auto max-h-64 whitespace-pre-wrap break-all font-mono leading-relaxed">
+    <pre className="text-xs text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-3 overflow-auto max-h-64 whitespace-pre-wrap break-all font-mono leading-relaxed">
       {text}
     </pre>
   )
@@ -29,37 +70,37 @@ function GitCommitDetail({ ev }: { ev: EventItem }) {
   const hasSnapshot: boolean = (payload?.has_snapshot as boolean) ?? false
 
   return (
-    <div className="px-6 py-4 bg-gray-800/40 border-t border-gray-800 space-y-4">
-      {/* SHA + 메시지 */}
+    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 space-y-4">
       <div className="grid grid-cols-2 gap-x-8 gap-y-3">
         <div>
-          <p className="text-gray-500 text-xs font-medium mb-1">Git SHA</p>
-          <p className="text-pink-300 text-xs font-mono break-all">{ev.git_sha}</p>
+          <p className="text-slate-500 text-xs font-semibold mb-1">Git SHA</p>
+          <p className="text-pink-800 text-xs font-mono break-all">{ev.git_sha}</p>
         </div>
         <div>
-          <p className="text-gray-500 text-xs font-medium mb-1">스냅샷</p>
+          <p className="text-slate-500 text-xs font-semibold mb-1">스냅샷</p>
           <p className="text-xs font-mono">
-            {hasSnapshot
-              ? <span className="text-emerald-400">✓ 있음 (전체 {totalFiles}개 파일)</span>
-              : <span className="text-red-400">✗ 없음</span>}
+            {hasSnapshot ? (
+              <span className="text-emerald-700 font-semibold">✓ 있음 (전체 {totalFiles}개 파일)</span>
+            ) : (
+              <span className="text-red-700 font-semibold">✗ 없음</span>
+            )}
           </p>
         </div>
         <div className="col-span-2">
-          <p className="text-gray-500 text-xs font-medium mb-1">커밋 메시지</p>
-          <p className="text-gray-200 text-xs font-mono whitespace-pre-wrap">{ev.git_message}</p>
+          <p className="text-slate-500 text-xs font-semibold mb-1">커밋 메시지</p>
+          <p className="text-slate-800 text-xs font-mono whitespace-pre-wrap">{ev.git_message}</p>
         </div>
       </div>
 
-      {/* 변경 파일 목록 */}
       {changedFiles.length > 0 && (
         <div>
-          <p className="text-gray-500 text-xs font-medium mb-2">
-            변경된 파일 <span className="text-pink-400">{changedFiles.length}개</span>
+          <p className="text-slate-500 text-xs font-semibold mb-2">
+            변경된 파일 <span className="text-pink-700">{changedFiles.length}개</span>
           </p>
-          <div className="bg-gray-950 rounded-lg p-3 max-h-56 overflow-auto space-y-1">
+          <div className="bg-white border border-slate-200 rounded-lg p-3 max-h-56 overflow-auto space-y-1">
             {changedFiles.map((f, i) => (
-              <p key={i} className="text-xs font-mono text-gray-300 flex items-start gap-2">
-                <span className="text-pink-500 shrink-0">▸</span>
+              <p key={i} className="text-xs font-mono text-slate-700 flex items-start gap-2">
+                <span className="text-pink-600 shrink-0">▸</span>
                 <span className="break-all">{f}</span>
               </p>
             ))}
@@ -80,35 +121,33 @@ function DetailPanel({ ev }: { ev: EventItem }) {
     { label: '파일 경로', value: ev.path, show: !!ev.path },
     { label: '콘텐츠 미리보기', value: ev.content_preview, show: !!ev.content_preview },
     { label: '결과 요약', value: ev.result_preview, show: !!ev.result_preview },
-    { label: 'Git SHA', value: ev.git_sha, show: !!ev.git_sha },
-    { label: 'Git 메시지', value: ev.git_message, show: !!ev.git_message },
-    { label: '완료 상태', value: ev.completion_status, show: !!ev.completion_status },
-    { label: '승인 필요', value: ev.requires_approval, show: ev.requires_approval !== '' && ev.requires_approval !== undefined },
+    { label: 'Git SHA', value: ev.git_sha, show: !!ev.git_sha && ev.git_sha !== '-' },
+    { label: 'Git 메시지', value: ev.git_message, show: !!ev.git_message && ev.git_message !== '-' },
+    { label: '완료 상태', value: ev.completion_status, show: !!ev.completion_status && ev.completion_status !== '-' },
+    { label: '승인 필요', value: ev.requires_approval, show: ev.requires_approval !== '' && ev.requires_approval !== '-' },
     { label: '이전 상태 (TaskResume)', value: ev.previous_state, show: Object.keys(ev.previous_state || {}).length > 0 },
     { label: '모델', value: ev.model, show: !!ev.model },
     { label: 'Cline 버전', value: ev.clineVersion, show: !!ev.clineVersion },
   ]
 
   return (
-    <div className="px-6 py-4 bg-gray-800/40 border-t border-gray-800 space-y-4">
-      {/* 핵심 필드 */}
+    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 space-y-4">
       <div className="grid grid-cols-2 gap-x-8 gap-y-3">
         {sections.filter(s => s.show).map(s => (
           <div key={s.label} className={typeof s.value === 'object' ? 'col-span-2' : ''}>
-            <p className="text-gray-500 text-xs font-medium mb-1">{s.label}</p>
+            <p className="text-slate-500 text-xs font-semibold mb-1">{s.label}</p>
             {typeof s.value === 'object' ? (
               <JsonViewer data={s.value} />
             ) : (
-              <p className="text-gray-300 text-xs font-mono whitespace-pre-wrap break-all">{String(s.value)}</p>
+              <p className="text-slate-800 text-xs font-mono whitespace-pre-wrap break-all">{String(s.value)}</p>
             )}
           </div>
         ))}
       </div>
 
-      {/* 전체 payload JSON */}
       {Object.keys(ev.raw_payload ?? {}).length > 0 && (
         <div>
-          <p className="text-gray-500 text-xs font-medium mb-1">전체 payload (raw JSON)</p>
+          <p className="text-slate-500 text-xs font-semibold mb-1">전체 payload (raw JSON)</p>
           <JsonViewer data={ev.raw_payload} />
         </div>
       )}
@@ -118,9 +157,13 @@ function DetailPanel({ ev }: { ev: EventItem }) {
 
 const ALL_EVENTS = 'ALL'
 
-interface Props { events: EventItem[] }
+interface Props {
+  events: EventItem[]
+  /** 좌우 50:50 레이아웃 등에서 카드가 열 높이를 채우고 표만 스크롤 */
+  fillColumn?: boolean
+}
 
-export default function EventLog({ events }: Props) {
+export default function EventLog({ events, fillColumn }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null)
   const [filter, setFilter] = useState(ALL_EVENTS)
   const [search, setSearch] = useState('')
@@ -149,23 +192,28 @@ export default function EventLog({ events }: Props) {
       })
   }, [events, filter, search])
 
+  const panelBodyScroll = fillColumn
+    ? 'flex-1 min-h-0 overflow-auto'
+    : 'overflow-auto max-h-[720px]'
+
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800">
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-gray-800 flex flex-wrap items-center gap-3">
+    <div
+      className={`bg-white rounded-xl border border-slate-200 shadow-sm ${
+        fillColumn ? 'flex flex-col h-full min-h-[min(680px,78vh)] max-h-[85vh]' : ''
+      }`}
+    >
+      <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3 bg-slate-50/70 rounded-t-xl shrink-0">
         <div className="flex items-center gap-2 flex-1">
-          <h2 className="font-semibold text-white text-sm">이벤트 로그</h2>
-          <span className="text-gray-500 text-xs">전체 {events.length}건 · 표시 {filtered.length}건</span>
+          <h2 className="font-semibold text-slate-900 text-sm">이벤트 로그</h2>
+          <span className="text-slate-500 text-xs">전체 {events.length}건 · 표시 {filtered.length}건</span>
         </div>
-        {/* 검색 */}
         <input
           type="text"
           placeholder="검색 (이벤트·도구·경로·프롬프트…)"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500 w-64"
+          className={`bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-400 ${fillColumn ? 'w-full min-w-0 xl:max-w-[14rem]' : 'w-64'}`}
         />
-        {/* 이벤트 필터 */}
         <div className="flex flex-wrap gap-1.5">
           {eventTypes.map(type => {
             const c = EVENT_COLOR[type]
@@ -174,10 +222,12 @@ export default function EventLog({ events }: Props) {
               <button
                 key={type}
                 onClick={() => setFilter(type)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
                   active
-                    ? (c ? `${c.badge} border` : 'bg-gray-600 text-white border-gray-500')
-                    : 'bg-transparent text-gray-500 border-gray-700 hover:border-gray-500'
+                    ? c
+                      ? `${c.badge} border`
+                      : 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
                 }`}
               >
                 {type === ALL_EVENTS ? '전체' : type}
@@ -187,13 +237,12 @@ export default function EventLog({ events }: Props) {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-auto max-h-[500px]">
+      <div className={panelBodyScroll}>
         <table className="w-full text-xs font-mono">
-          <thead className="sticky top-0 bg-gray-900 z-10 border-b border-gray-800">
+          <thead className="sticky top-0 bg-white z-10 border-b border-slate-200 shadow-sm">
             <tr>
               {['#', '시각(KST)', 'Task ID', '이벤트', '도구/유형', '주요 정보', '소요(초)', '성공'].map(h => (
-                <th key={h} className="text-left px-4 py-2 text-gray-500 font-medium whitespace-nowrap">
+                <th key={h} className="text-left px-4 py-2 text-slate-600 font-semibold whitespace-nowrap">
                   {h}
                 </th>
               ))}
@@ -203,59 +252,54 @@ export default function EventLog({ events }: Props) {
             {filtered.map(ev => {
               const c = EVENT_COLOR[ev.event] ?? DEFAULT_COLOR
               const isOpen = expanded === ev.idx
-              // 행에 보여줄 주요 정보
               const mainInfo =
-                ev.prompt || ev.initial_task || ev.command ||
-                ev.path || ev.git_message || ev.result_preview || '-'
+                ev.prompt || ev.initial_task || ev.command || ev.path || ev.git_message || ev.result_preview || '-'
 
               return (
-                <>
+                <Fragment key={ev.idx}>
                   <tr
-                    key={ev.idx}
                     onClick={() => setExpanded(isOpen ? null : ev.idx)}
-                    className={`border-b border-gray-800/40 cursor-pointer transition-colors ${
-                      isOpen ? 'bg-gray-800/50' : 'hover:bg-gray-800/30'
+                    className={`border-b border-slate-100 cursor-pointer transition-colors ${
+                      isOpen ? 'bg-sky-50' : 'hover:bg-slate-50'
                     }`}
                   >
-                    <td className="px-4 py-2 text-gray-600">{ev.idx}</td>
-                    <td className="px-4 py-2 text-gray-400 whitespace-nowrap">{ev.ts_kst}</td>
-                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">
+                    <td className="px-4 py-2 text-slate-500 tabular-nums">{ev.idx}</td>
+                    <td className="px-4 py-2 text-slate-600 whitespace-nowrap">{ev.ts_kst}</td>
+                    <td className="px-4 py-2 text-slate-600 whitespace-nowrap">
                       {ev.taskId ? ev.taskId.slice(-8) : '-'}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`flex items-center gap-1.5 font-semibold ${c.text}`}>
+                      <span className={`flex items-center gap-1.5 font-bold ${c.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
                         {ev.event}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-400">
-                      {ev.tool || (ev.git_sha ? 'GitCommit' : '-')}
-                    </td>
-                    <td className="px-4 py-2 text-gray-400 max-w-sm truncate">
-                      {mainInfo}
-                    </td>
-                    <td className="px-4 py-2 text-gray-400">
-                      {ev.exec_sec != null ? `${ev.exec_sec}s` : '-'}
-                    </td>
+                    <td className="px-4 py-2 text-slate-600">{ev.tool || (ev.git_sha && ev.git_sha !== '-' ? 'GitCommit' : '-')}</td>
+                    <td className="px-4 py-2 text-slate-600 max-w-sm truncate">{mainInfo}</td>
+                    <td className="px-4 py-2 text-slate-600 tabular-nums">{ev.exec_sec != null ? `${ev.exec_sec}s` : '-'}</td>
                     <td className="px-4 py-2">
-                      {ev.success === true  ? <span className="text-emerald-400 font-bold">✓</span>
-                      : ev.success === false ? <span className="text-red-400 font-bold">✗</span>
-                      : <span className="text-gray-700">—</span>}
+                      {ev.success === true ? (
+                        <span className="text-emerald-600 font-bold">✓</span>
+                      ) : ev.success === false ? (
+                        <span className="text-red-600 font-bold">✗</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                   {isOpen && (
-                    <tr key={`${ev.idx}-detail`} className="border-b border-gray-700">
+                    <tr className="border-b border-slate-100">
                       <td colSpan={8} className="p-0">
                         <DetailPanel ev={ev} />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-600">
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                   일치하는 이벤트가 없습니다
                 </td>
               </tr>

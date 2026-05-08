@@ -20,7 +20,9 @@ export default function Modal({ open, onClose, title, width = 'lg', children }: 
 
   useEffect(() => {
     if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
@@ -30,30 +32,31 @@ export default function Modal({ open, onClose, title, width = 'lg', children }: 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onMouseDown={e => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" />
 
-      {/* Panel */}
       <div
         ref={ref}
-        className={`relative z-10 w-full ${WIDTH_CLASS[width]} bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
+        className={`relative z-10 w-full ${WIDTH_CLASS[width]} bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-slate-50/80 rounded-t-2xl">
+          <h3 className="text-sm font-semibold text-slate-900 leading-snug pr-6">{title}</h3>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-800"
+            className="text-slate-500 hover:text-slate-900 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white border border-transparent hover:border-slate-200"
           >
             ✕
           </button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto p-5 flex-1"
-             style={{ scrollbarWidth: 'thin', scrollbarColor: '#374151 transparent' }}>
+        <div
+          className="overflow-y-auto p-5 flex-1"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}
+        >
           {children}
         </div>
       </div>

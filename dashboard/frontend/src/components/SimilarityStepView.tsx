@@ -26,7 +26,7 @@ function GaugeRing({ value, color, size = 56 }: { value: number; color: string; 
   const offset = circ * (1 - value)
   return (
     <svg width={size} height={size} className="shrink-0">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1f2937" strokeWidth={6} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#cbd5e1" strokeWidth={6} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
         strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
         transform={`rotate(-90 ${size/2} ${size/2})`}
@@ -63,10 +63,10 @@ function LayerBar({ layer, value }: { layer: Layer; value: number }) {
           <span className="text-xs font-semibold" style={{ color: m.color }}>{m.label}</span>
           <span className="text-xs font-bold font-mono" style={{ color: g.color }}>{g.label}</span>
         </div>
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: m.color, transition: 'width 0.5s ease' }} />
         </div>
-        <p className="text-xs text-gray-600 mt-1 truncate">{m.desc}</p>
+        <p className="text-xs text-slate-500 mt-1 truncate">{m.desc}</p>
       </div>
       <span className="text-lg font-black font-mono shrink-0 w-12 text-right" style={{ color: m.color }}>
         {pct}<span className="text-xs font-normal">%</span>
@@ -79,10 +79,10 @@ function OverallScore({ scores }: { scores: Record<Layer, number> }) {
   const avg = (scores.L1 + scores.L2 + scores.L3 + scores.L4) / 4
   const g = grade(avg)
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800/50 border border-gray-700/50">
+    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-100 border border-slate-200/50">
       <GaugeRing value={avg} color={g.color} size={64} />
       <div>
-        <p className="text-xs text-gray-500 mb-0.5">종합 유사도 (L1~L4 평균)</p>
+        <p className="text-xs text-slate-500 mb-0.5">종합 유사도 (L1~L4 평균)</p>
         <p className="text-2xl font-black font-mono" style={{ color: g.color }}>{Math.round(avg*100)}%</p>
         <p className="text-xs font-medium mt-0.5" style={{ color: g.color }}>{g.label}</p>
       </div>
@@ -99,14 +99,14 @@ function StepDetail({ r, prev }: { r: SimilarityResult; prev?: SimilarityResult 
       {/* 커밋 비교 */}
       <div className="space-y-1.5">
         {r.prev_sha !== '' && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-700/50">
-            <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 border border-gray-600 shrink-0">이전</span>
-            <span className="font-mono text-xs text-gray-500 shrink-0">{r.prev_sha_short}</span>
-            <span className="text-xs text-gray-400 truncate">{prev?.message ?? ''}</span>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200/50">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 border border-gray-600 shrink-0">이전</span>
+            <span className="font-mono text-xs text-slate-500 shrink-0">{r.prev_sha_short}</span>
+            <span className="text-xs text-slate-600 truncate">{prev?.message ?? ''}</span>
           </div>
         )}
         <div className="flex items-center justify-center">
-          <div className={`flex flex-col items-center ${r.changed ? 'text-amber-500' : 'text-gray-700'}`}>
+          <div className={`flex flex-col items-center ${r.changed ? 'text-amber-500' : 'text-slate-600'}`}>
             <div className="w-0.5 h-3 bg-current" />
             <span className="text-[10px]">▼</span>
           </div>
@@ -114,17 +114,17 @@ function StepDetail({ r, prev }: { r: SimilarityResult; prev?: SimilarityResult 
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
           <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">현재</span>
           <span className="font-mono text-xs text-blue-400 shrink-0">{r.sha_short}</span>
-          <span className="text-xs text-gray-300 truncate">{r.message}</span>
-          {r.ts_kst && <span className="text-xs text-gray-600 shrink-0">{r.ts_kst}</span>}
+          <span className="text-xs text-slate-700 truncate">{r.message}</span>
+          {r.ts_kst && <span className="text-xs text-slate-500 shrink-0">{r.ts_kst}</span>}
         </div>
       </div>
 
       {/* 파일 크기 */}
-      <div className="flex items-center gap-3 text-xs px-3 py-2 rounded-lg bg-gray-800/40 border border-gray-700/40">
-        <span className="text-gray-500">파일 크기</span>
-        <span className="font-mono text-gray-400">{sizeKb(r.old_size)}</span>
-        <span className="text-gray-700">→</span>
-        <span className="font-mono text-gray-300">{sizeKb(r.new_size)}</span>
+      <div className="flex items-center gap-3 text-xs px-3 py-2 rounded-lg bg-slate-100/95 border border-slate-200/40">
+        <span className="text-slate-500">파일 크기</span>
+        <span className="font-mono text-slate-600">{sizeKb(r.old_size)}</span>
+        <span className="text-slate-600">→</span>
+        <span className="font-mono text-slate-700">{sizeKb(r.new_size)}</span>
         {r.new_size !== r.old_size && (
           <span className={`font-mono font-semibold ml-auto ${r.new_size > r.old_size ? 'text-emerald-400' : 'text-red-400'}`}>
             {r.new_size > r.old_size ? '+' : ''}{((r.new_size - r.old_size) / 1024).toFixed(1)}KB
@@ -141,8 +141,8 @@ function StepDetail({ r, prev }: { r: SimilarityResult; prev?: SimilarityResult 
       </div>
 
       {/* 해석 가이드 */}
-      <details className="rounded-lg bg-gray-800/30 border border-gray-700/30">
-        <summary className="text-xs text-gray-500 font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-400">
+      <details className="rounded-lg bg-slate-50 border border-slate-200/30">
+        <summary className="text-xs text-slate-500 font-medium px-3 py-2 cursor-pointer select-none hover:text-slate-600">
           수치 해석 가이드
         </summary>
         <div className="px-3 pb-3 space-y-1.5 mt-1">
@@ -155,7 +155,7 @@ function StepDetail({ r, prev }: { r: SimilarityResult; prev?: SimilarityResult 
           ].map(item => (
             <div key={item.range} className="flex items-center gap-2">
               <span className="text-xs font-mono w-20 shrink-0 font-semibold" style={{ color: item.color }}>{item.range}</span>
-              <span className="text-xs text-gray-500">{item.meaning}</span>
+              <span className="text-xs text-slate-500">{item.meaning}</span>
             </div>
           ))}
         </div>
@@ -190,26 +190,26 @@ export default function SimilarityStepView({ file }: Props) {
 
   return (
     <>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
         {/* 헤더 */}
         <div>
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400" />
             커밋 단계별 유사도
-            {results.length > 0 && <span className="text-xs font-normal text-gray-500">{results.length}개 커밋</span>}
+            {results.length > 0 && <span className="text-xs font-normal text-slate-500">{results.length}개 커밋</span>}
           </h2>
-          <p className="text-xs text-gray-500 mt-0.5">항목 클릭 → 상세 모달 · 낮을수록 큰 변경</p>
+          <p className="text-xs text-slate-500 mt-0.5">항목 클릭 → 상세 모달 · 낮을수록 큰 변경</p>
         </div>
 
         {!loading && !error && !file && (
-          <p className="text-gray-500 text-sm text-center py-8">파일을 선택하세요.</p>
+          <p className="text-slate-500 text-sm text-center py-8">파일을 선택하세요.</p>
         )}
         {!loading && !error && file && results.length === 0 && (
-          <p className="text-gray-500 text-sm text-center py-8">'{file}' 의 커밋 히스토리가 없습니다.</p>
+          <p className="text-slate-500 text-sm text-center py-8">'{file}' 의 커밋 히스토리가 없습니다.</p>
         )}
         {loading && (
-          <div className="flex items-center justify-center h-40 text-gray-500 text-sm gap-2">
-            <div className="w-4 h-4 border-2 border-gray-700 border-t-amber-500 rounded-full animate-spin" />
+          <div className="flex items-center justify-center h-40 text-slate-500 text-sm gap-2">
+            <div className="w-4 h-4 border-2 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
             계산 중…
           </div>
         )}
@@ -219,7 +219,7 @@ export default function SimilarityStepView({ file }: Props) {
 
         {!loading && !error && results.length > 0 && (
           <div className="overflow-y-auto max-h-[480px] space-y-0"
-               style={{ scrollbarWidth: 'thin', scrollbarColor: '#374151 transparent' }}>
+               style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
             {results.map((r, i) => {
               const isFirst = r.prev_sha === ''
               const hasChange = !isFirst && r.changed
@@ -232,21 +232,21 @@ export default function SimilarityStepView({ file }: Props) {
                   <div
                     onClick={() => !isFirst && setModalIdx(i)}
                     className={`flex items-start gap-2 rounded-lg px-2 py-1.5 transition-colors
-                      ${!isFirst ? 'cursor-pointer hover:bg-gray-800/50 active:bg-gray-800' : ''}`}
+                      ${!isFirst ? 'cursor-pointer hover:bg-slate-100 active:bg-slate-100' : ''}`}
                   >
                     {/* 타임라인 점 */}
                     <div className="flex flex-col items-center shrink-0 mt-1.5">
                       <div className={`w-2.5 h-2.5 rounded-full border-2 shrink-0
                         ${isFirst ? 'border-emerald-500 bg-emerald-500/20' :
                           hasChange ? 'border-amber-400 bg-amber-400/20' :
-                          'border-gray-600 bg-gray-800'}`}
+                          'border-gray-600 bg-slate-100'}`}
                       />
                     </div>
 
                     {/* 커밋 정보 */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`font-mono text-xs ${isFirst ? 'text-emerald-400' : 'text-gray-500'}`}>
+                        <span className={`font-mono text-xs ${isFirst ? 'text-emerald-400' : 'text-slate-500'}`}>
                           {r.sha_short}
                         </span>
                         {isFirst && (
@@ -256,10 +256,10 @@ export default function SimilarityStepView({ file }: Props) {
                           <span className="text-[10px] px-1.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">변경됨</span>
                         )}
                         {!isFirst && !r.changed && (
-                          <span className="text-[10px] px-1.5 rounded bg-gray-800 text-gray-600 border border-gray-700">동일</span>
+                          <span className="text-[10px] px-1.5 rounded bg-slate-100 text-slate-500 border border-slate-200">동일</span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">{r.message}</p>
+                      <p className="text-xs text-slate-600 truncate mt-0.5">{r.message}</p>
 
                       {/* 점수 pills — 첫 커밋이 아닐 때 */}
                       {!isFirst && (
@@ -282,7 +282,7 @@ export default function SimilarityStepView({ file }: Props) {
 
                   {/* 타임라인 연결선 */}
                   {i < results.length - 1 && (
-                    <div className="ml-[9px] w-0.5 h-3 bg-gray-800" />
+                    <div className="ml-[9px] w-0.5 h-3 bg-slate-100" />
                   )}
                 </div>
               )
