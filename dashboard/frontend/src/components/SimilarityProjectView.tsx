@@ -51,7 +51,7 @@ function ScoreBadge({ value }: { value: number }) {
   const g = grade(value)
   return (
     <span className="text-xs font-mono font-bold" style={{ color: g.color }}>
-      {Math.round(value * 100)}%
+      {(value * 100).toFixed(1)}%
     </span>
   )
 }
@@ -104,6 +104,13 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
         <div className="bg-gray-800/50 rounded-lg px-3 py-2">
           <p className="text-gray-500 mb-0.5">변경 파일</p>
           <p className="text-white font-bold">{r.files_changed} / {r.total_files}개 소스파일</p>
+          {(r.added_files > 0 || r.deleted_files > 0) && (
+            <p className="text-[10px] text-gray-500 mt-0.5">
+              {r.added_files > 0 && <span className="text-emerald-600 mr-2">+{r.added_files}신규</span>}
+              {r.deleted_files > 0 && <span className="text-red-700">-{r.deleted_files}삭제</span>}
+              <span className="ml-1 text-gray-600">(유사도 계산 제외)</span>
+            </p>
+          )}
         </div>
         <div className="bg-gray-800/50 rounded-lg px-3 py-2">
           <p className="text-gray-500 mb-0.5">변경 크기</p>
@@ -119,24 +126,24 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
       {/* 두 점수 비교 */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-gray-800/40 border border-gray-700/50 p-3">
-          <p className="text-xs text-gray-500 mb-2">프로젝트 전체 유사도</p>
+          <p className="text-xs text-gray-500 mb-2">변경 파일 유사도 <span className="text-gray-600">(실질 변경 지표)</span></p>
           <div className="flex items-center gap-2">
-            <GaugeRing value={avg} color={g.color} size={52} />
+            <GaugeRing value={rawAvg} color={gRaw.color} size={52} />
             <div>
-              <p className="text-lg font-black font-mono" style={{ color: g.color }}>{Math.round(avg*100)}%</p>
-              <p className="text-xs" style={{ color: g.color }}>{g.label}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">변경 비중 반영</p>
+              <p className="text-lg font-black font-mono" style={{ color: gRaw.color }}>{(rawAvg*100).toFixed(1)}%</p>
+              <p className="text-xs" style={{ color: gRaw.color }}>{gRaw.label}</p>
+              <p className="text-[10px] text-gray-600 mt-0.5">변경된 파일만 기준</p>
             </div>
           </div>
         </div>
         <div className="rounded-xl bg-gray-800/40 border border-gray-700/50 p-3">
-          <p className="text-xs text-gray-500 mb-2">변경 파일만 평균</p>
+          <p className="text-xs text-gray-500 mb-2">프로젝트 전체 가중 유사도</p>
           <div className="flex items-center gap-2">
-            <GaugeRing value={rawAvg} color={gRaw.color} size={52} />
+            <GaugeRing value={avg} color={g.color} size={52} />
             <div>
-              <p className="text-lg font-black font-mono" style={{ color: gRaw.color }}>{Math.round(rawAvg*100)}%</p>
-              <p className="text-xs" style={{ color: gRaw.color }}>{gRaw.label}</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">변경 파일 기준</p>
+              <p className="text-lg font-black font-mono" style={{ color: g.color }}>{(avg*100).toFixed(1)}%</p>
+              <p className="text-xs" style={{ color: g.color }}>{g.label}</p>
+              <p className="text-[10px] text-gray-600 mt-0.5">전체 파일 변경 비중 반영</p>
             </div>
           </div>
         </div>
@@ -178,13 +185,13 @@ function ProjectCommitDetail({ r }: { r: ProjectSimilarityResult }) {
 }
 
 /* ── 메인 컴포넌트 ─── */
-export default function SimilarityProjectView() {
-  const [results, setResults] = useState<ProjectSimilarityResult[]>([])
-  const [loading, setLoading] = useState(false)
+export default function SimilarityProjectView({ prefetchedData }: { prefetchedData?: ProjectSimilarityResult[] }) {
+  const [results, setResults] = useState<ProjectSimilarityResult[]>(prefetchedData ?? [])
+  const [loading, setLoading] = useState(!prefetchedData)
   const [error, setError] = useState('')
   const [modalIdx, setModalIdx] = useState<number | null>(null)
-  const [scoreMode, setScoreMode] = useState<'project' | 'raw'>('project')
-  const [loaded, setLoaded] = useState(false)
+  const [scoreMode, setScoreMode] = useState<'project' | 'raw'>('raw')
+  const [loaded, setLoaded] = useState(!!prefetchedData)
 
   const load = (refresh = false) => {
     setLoading(true); setError('')
@@ -200,7 +207,9 @@ export default function SimilarityProjectView() {
       })
   }
 
-  useEffect(() => { /* lazy load — 버튼 클릭 시 */ }, [])
+  useEffect(() => {
+    if (prefetchedData) { setResults(prefetchedData); setLoaded(true); setLoading(false) }
+  }, [prefetchedData])
 
   const chartData = results
     .filter(r => r.prev_sha !== '')
@@ -224,13 +233,13 @@ export default function SimilarityProjectView() {
           <div>
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-400" />
-              프로젝트 전체 유사도
+              AI코드 Quality 단계별 유사도 차트
               {results.length > 0 && (
                 <span className="text-xs font-normal text-gray-500">{results.length}개 커밋</span>
               )}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              전체 소스 파일 변화율 · 낮을수록 해당 커밋에서 프로젝트가 크게 변경됨
+              직전 커밋과 현재 커밋 간 유사도 — 낮을수록 해당 커밋에서 코드가 많이 바뀐 것
             </p>
           </div>
 

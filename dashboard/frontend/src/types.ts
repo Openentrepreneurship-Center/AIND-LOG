@@ -91,6 +91,8 @@ export interface ProjectSimilarityResult {
   message: string
   ts_kst: string
   files_changed: number
+  added_files: number
+  deleted_files: number
   total_files: number
   changed_size: number
   total_size: number
@@ -245,6 +247,31 @@ export interface DashboardData {
     event_types: CountItem[]
     tools: CountItem[]
   }
+}
+
+// ── 프로젝트 각 커밋 vs 첫 커밋 유사도 (시계열) ──────────────────────────────
+export interface ProjectFromFirstItem {
+  sha: string
+  sha_short: string
+  message: string
+  ts_kst: string
+  file_count: number
+  scores: { L1: number; L2: number; L3: number; L4: number }
+  ref_sha_short?: string
+}
+
+// ── 프로젝트 첫↔마지막 커밋 유사도 ──────────────────────────────────────────
+export interface ProjectFirstLastSimilarity {
+  L1: number
+  L2: number
+  L3: number
+  L4: number
+  file_count: number          // 마지막 커밋 전체 소스파일 수
+  common_file_count?: number  // 유사도 실측에 사용한 공통 파일 수
+  new_file_count?: number     // 신규 추가 파일 수 (유사도 0점 반영)
+  total_commits: number
+  first_sha_short?: string
+  last_sha_short?: string
 }
 
 // ── Repo Tree (파일 선택 GUI) ──────────────────────────────────────────────

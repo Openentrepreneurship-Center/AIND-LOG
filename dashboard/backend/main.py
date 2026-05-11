@@ -1619,7 +1619,9 @@ class ProjectSimilarityResult(BaseModel):
     prev_sha_short: str = Field(..., description="이전 커밋 SHA 단축형")
     message: str = Field(..., description="커밋 메시지")
     ts_kst: str = Field(..., description="커밋 시각 (KST)")
-    files_changed: int = Field(..., description="이 커밋에서 변경된 소스 파일 수")
+    files_changed: int = Field(..., description="수정된 소스 파일 수 (신규·삭제 제외)")
+    added_files: int = Field(0, description="신규 추가 소스 파일 수 (유사도 계산 제외)")
+    deleted_files: int = Field(0, description="삭제된 소스 파일 수 (유사도 계산 제외)")
     total_files: int = Field(..., description="전체 소스 파일 수 (스냅샷 기준)")
     changed_size: int = Field(..., description="변경 파일 총 크기 (bytes)")
     total_size: int = Field(..., description="전체 소스 파일 총 크기 (bytes)")
@@ -1731,15 +1733,26 @@ def get_project_similarity(
             continue
 
         # 파일별 유사도 계산 (크기 가중)
+        # 신규 추가 파일(prev에 없던 것)은 제외 — "기존 코드 변경"만 측정
         weighted: dict[str, float] = {"L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0}
         changed_weight = 0
+        added_files = 0    # 신규 추가 파일 수 (유사도 계산 제외)
+        deleted_files = 0  # 삭제된 파일 수 (유사도 계산 제외)
         for fp in changed_source:
             old = prev_map.get(fp, "")
             new = curr_map.get(fp, "")
             if not old and not new:
                 continue
+            if not old:
+                # 신규 추가 파일 — 이전 버전 없음, 제외
+                added_files += 1
+                continue
+            if not new:
+                # 삭제된 파일 — 현재 버전 없음, 제외
+                deleted_files += 1
+                continue
             sc = compute_all(old, new)
-            w = len((new or old).encode("utf-8"))
+            w = len(new.encode("utf-8"))
             for k in weighted:
                 weighted[k] += sc[k] * w
             changed_weight += w
@@ -1761,7 +1774,9 @@ def get_project_similarity(
             "sha": sha, "sha_short": sha[:7],
             "prev_sha": prev_sha, "prev_sha_short": prev_sha_short,
             "message": commit["message"], "ts_kst": commit["ts_kst"],
-            "files_changed": len(changed_source),
+            "files_changed": len(changed_source) - added_files - deleted_files,
+            "added_files": added_files,
+            "deleted_files": deleted_files,
             "total_files": total_files,
             "changed_size": changed_weight,
             "total_size": total_size,
@@ -1945,6 +1960,207 @@ def get_repo_tree() -> dict:
         filtered = [p[len(TARGET_REPO_PREFIX):] for p in all_paths if p.startswith(TARGET_REPO_PREFIX)]
         all_paths = filtered if filtered else all_paths
     return {"root": str(TARGET_REPO_ROOT), "file_count": len(all_paths), "tree": _build_tree(all_paths)}
+
+
+_project_from_first_cache: list | None = None
+_project_first_last_cache: dict | None = None
+
+
+@app.get(
+    "/api/similarity/project-from-first",
+    tags=["similarity"],
+    summary="프로젝트 전체 — 각 커밋 vs 첫 커밋 유사도 (시계열)",
+)
+def get_project_from_first_similarity(
+    refresh: bool = Query(False, description="캐시 무시 여부"),
+) -> list:
+    global _project_from_first_cache
+    if not refresh and _project_from_first_cache is not None:
+        return _project_from_first_cache
+
+    from similarity import compute_all
+
+    all_commits = load_commits()
+    if not all_commits:
+        raise HTTPException(404, "커밋 데이터가 없습니다.")
+
+    commits_asc = sorted(all_commits, key=lambda c: c["ts"] or 0)
+    if len(commits_asc) < 2:
+        raise HTTPException(404, "커밋이 2개 미만입니다.")
+
+    def _snap(commit: dict) -> dict[str, str]:
+        m: dict[str, str] = {}
+        for sf in commit.get("snapshot_files", []):
+            short = _strip_prefix(sf.get("path", ""))
+            if _is_source(short):
+                m[short] = sf.get("content", "")
+        return m
+
+    # 의미 있는 기준 커밋 찾기: 마지막 커밋과 공통 소스파일이 THRESHOLD 개 이상인 가장 첫 커밋
+    OVERLAP_THRESHOLD = 20
+    MAX_CHARS = 50_000
+    MAX_FILES = 15
+
+    last_map = _snap(commits_asc[-1])
+    last_files = set(last_map.keys())
+
+    ref_idx = 0
+    for idx, c in enumerate(commits_asc):
+        candidate_map = _snap(c)
+        overlap = len(set(candidate_map.keys()) & last_files)
+        if overlap >= OVERLAP_THRESHOLD:
+            ref_idx = idx
+            break
+
+    first_map = _snap(commits_asc[ref_idx])
+    ref_sha = commits_asc[ref_idx]["sha"]
+
+    results: list[dict] = []
+    for i, commit in enumerate(commits_asc[ref_idx:], start=ref_idx):
+        sha = commit["sha"]
+        curr_map = _snap(commit) if i > ref_idx else first_map
+
+        n_total_current = len(curr_map)
+        common = set(first_map.keys()) & set(curr_map.keys())
+        n_new = n_total_current - len(common)  # 기준 커밋에 없는 신규 파일 수
+
+        if i == ref_idx:
+            scores = {"L1": 1.0, "L2": 1.0, "L3": 1.0, "L4": 1.0}
+            file_count = n_total_current
+            new_file_count = 0
+        else:
+            candidates = sorted(
+                [f for f in common
+                 if first_map[f].strip() and curr_map[f].strip()
+                 and len(first_map[f]) < MAX_CHARS and len(curr_map[f]) < MAX_CHARS],
+                key=lambda f: len(first_map[f]) + len(curr_map[f]),
+                reverse=True,
+            )[:MAX_FILES]
+
+            if not candidates:
+                # 공통 파일 없음 → 신규 파일만 존재 → 유사도 0
+                scores = {"L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0}
+                file_count = n_total_current
+                new_file_count = n_new
+            else:
+                totals = {"L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0}
+                count = 0
+                for f in candidates:
+                    try:
+                        sc = compute_all(first_map[f], curr_map[f])
+                        for k in totals:
+                            totals[k] += sc.get(k, 0.0)
+                        count += 1
+                    except Exception:
+                        pass
+
+                # 공통 파일 평균 유사도
+                common_sim = {k: totals[k] / count if count else 0.0 for k in totals}
+                # 신규 파일 비율만큼 0점 반영: sim * (n_common / n_total) + 0 * (n_new / n_total)
+                common_ratio = len(common) / n_total_current if n_total_current else 1.0
+                scores = {k: round(common_sim[k] * common_ratio, 4) for k in common_sim}
+                file_count = n_total_current
+                new_file_count = n_new
+
+        results.append({
+            "sha": sha,
+            "sha_short": sha[:7],
+            "message": commit.get("message", ""),
+            "ts_kst": commit.get("ts_kst", ""),
+            "file_count": file_count,
+            "new_file_count": new_file_count if i != ref_idx else 0,
+            "scores": scores,
+            "ref_sha_short": ref_sha[:7],
+        })
+
+    _project_from_first_cache = results
+    return results
+
+@app.get(
+    "/api/similarity/project-first-last",
+    tags=["similarity"],
+    summary="프로젝트 전체 첫 커밋 ↔ 마지막 커밋 유사도 (평균)",
+)
+def get_project_first_last_similarity(
+    refresh: bool = Query(False, description="캐시 무시 여부"),
+) -> dict:
+    global _project_first_last_cache
+    if not refresh and _project_first_last_cache is not None:
+        return _project_first_last_cache
+
+    from similarity import compute_all
+
+    all_commits = load_commits()
+    if not all_commits:
+        raise HTTPException(404, "커밋 데이터가 없습니다.")
+
+    commits_asc = sorted(all_commits, key=lambda c: c["ts"] or 0)
+    if len(commits_asc) < 2:
+        raise HTTPException(404, "커밋이 2개 미만입니다.")
+
+    def _snap(commit: dict) -> dict[str, str]:
+        m: dict[str, str] = {}
+        for sf in commit.get("snapshot_files", []):
+            short = _strip_prefix(sf.get("path", ""))
+            if _is_source(short):
+                m[short] = sf.get("content", "")
+        return m
+
+    # 의미 있는 기준 커밋 찾기: 마지막 커밋과 공통 소스파일이 THRESHOLD 개 이상인 가장 첫 커밋
+    OVERLAP_THRESHOLD = 20
+    last_map = _snap(commits_asc[-1])
+    last_files = set(last_map.keys())
+
+    ref_idx = 0
+    for idx, c in enumerate(commits_asc):
+        candidate_map = _snap(c)
+        overlap = len(set(candidate_map.keys()) & last_files)
+        if overlap >= OVERLAP_THRESHOLD:
+            ref_idx = idx
+            break
+
+    first_map = _snap(commits_asc[ref_idx])
+
+    # 마지막 커밋 기준 전체 소스파일 수 (신규 포함)
+    n_total_last = len(last_map)
+    common_files = set(first_map.keys()) & set(last_map.keys())
+    n_new = n_total_last - len(common_files)  # 기준 커밋에 없는 신규 파일 수
+
+    # 너무 작거나 큰 파일 제외 후 상위 20개만 처리 (속도 최적화)
+    MAX_FILES = 20
+    MAX_CHARS = 50_000
+    candidates = sorted(
+        [f for f in common_files if first_map[f].strip() and last_map[f].strip()
+         and len(first_map[f]) < MAX_CHARS and len(last_map[f]) < MAX_CHARS],
+        key=lambda f: len(first_map[f]) + len(last_map[f]),
+        reverse=True,
+    )[:MAX_FILES]
+
+    totals = {"L1": 0.0, "L2": 0.0, "L3": 0.0, "L4": 0.0}
+    count = 0
+    for f in candidates:
+        try:
+            sc = compute_all(first_map[f], last_map[f])
+            for k in totals:
+                totals[k] += sc.get(k, 0.0)
+            count += 1
+        except Exception:
+            pass
+
+    # 공통 파일 평균 유사도
+    common_sim = {k: totals[k] / count if count else 0.0 for k in totals}
+    # 신규 파일 비율만큼 0점 반영: sim * (n_common / n_total_last)
+    common_ratio = len(common_files) / n_total_last if n_total_last else 1.0
+    result = {k: round(common_sim[k] * common_ratio, 4) for k in common_sim}
+    result["file_count"] = n_total_last
+    result["common_file_count"] = count
+    result["new_file_count"] = n_new
+    result["total_commits"] = len(commits_asc)
+    result["first_sha_short"] = commits_asc[ref_idx]["sha"][:7]
+    result["last_sha_short"] = commits_asc[-1]["sha"][:7]
+
+    _project_first_last_cache = result
+    return result
 
 
 if __name__ == "__main__":

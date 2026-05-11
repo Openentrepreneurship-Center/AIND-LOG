@@ -1,5 +1,34 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Summary, TokenUsageEntry, CancelFollowup, ManualApprovalItem, HumanInteractionItem, Task, CountItem } from '../types'
+import { Summary, TokenUsageEntry, CancelFollowup, ManualApprovalItem, HumanInteractionItem, Task, CountItem, ProjectFirstLastSimilarity } from '../types'
+
+/** 행 그룹 컨테이너: PCL/PNL/BCL/기본정보 레이블 포함 */
+function SectionRow({ label, sub, color, children }: {
+  label: string
+  sub?: string
+  color: 'info' | 'blue' | 'purple' | 'emerald' | 'red' | 'mixed'
+  children: React.ReactNode
+}) {
+  const cfg = {
+    info:    { bar: 'bg-gray-500',    text: 'text-gray-300',    sub: 'text-gray-500',    border: 'border-gray-700/50' },
+    blue:    { bar: 'bg-blue-500',    text: 'text-blue-200',    sub: 'text-blue-400/70', border: 'border-blue-500/30' },
+    purple:  { bar: 'bg-purple-500',  text: 'text-purple-200',  sub: 'text-purple-400/70', border: 'border-purple-500/30' },
+    emerald: { bar: 'bg-emerald-500', text: 'text-emerald-200', sub: 'text-emerald-400/70', border: 'border-emerald-500/30' },
+    red:     { bar: 'bg-red-500',     text: 'text-red-300',     sub: 'text-red-400/60',  border: 'border-red-500/25'  },
+    mixed:   { bar: 'bg-gray-500',    text: 'text-gray-300',    sub: 'text-gray-500',    border: 'border-gray-700/50' },
+  }[color]
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-3 border-b pb-2 ${cfg!.border}`}>
+        <span className={`w-1.5 h-6 rounded-full shrink-0 ${cfg!.bar}`} />
+        <div>
+          <span className={`text-base font-bold tracking-wide ${cfg!.text}`}>{label}</span>
+          {sub && <span className={`ml-2 text-xs font-normal ${cfg!.sub}`}>{sub}</span>}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
 
 /** 모달이 열려 있는 동안 body 스크롤·드래그를 잠급니다. */
 function useBodyLock() {
@@ -17,6 +46,8 @@ interface Props {
   humanInteractionItems?: HumanInteractionItem[]
   tasks?: Task[]
   eventTypeCounts?: CountItem[]
+  projectFirstLast?: ProjectFirstLastSimilarity
+  projectFirstLastLoading?: boolean
 }
 
 // ── 포맷 헬퍼 ────────────────────────────────────────────────────────────────
@@ -1712,7 +1743,7 @@ function AutoWorkModal({ summary: s, onClose }: { summary: Summary; onClose: () 
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function SummaryCards({ summary: s, cancelFollowups = [], manualApprovalItems = [], humanInteractionItems = [], tasks = [], eventTypeCounts = [] }: Props) {
+export default function SummaryCards({ summary: s, cancelFollowups = [], manualApprovalItems = [], humanInteractionItems = [], tasks = [], eventTypeCounts = [], projectFirstLast, projectFirstLastLoading = false }: Props) {
   const [llmOpen, setLlmOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [autonomyOpen, setAutonomyOpen] = useState(false)
@@ -1730,8 +1761,6 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
   const hasTokenData = (totalIn + totalOut) > 0
   const compactCount = s.compact_count ?? 0
 
-  const reworkBad = s.file_rework_rate > 30
-  const ratioHigh = s.read_write_ratio > 5
   const efficiencyGood = (s.efficiency_score ?? 0) >= 1.5
   const [autoApproveOpen, setAutoApproveOpen] = useState(false)
   const [manualApprovalOpen, setManualApprovalOpen] = useState(false)
@@ -1740,7 +1769,17 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
   const [tokenUsageOpen, setTokenUsageOpen] = useState(false)
   const autoTotal = s.auto_approved_count ?? 0
   const manualTotal = s.manual_approval_count ?? 0
-  const safeTotal = s.safe_tools_count ?? 0
+
+  // ── 컬러 헬퍼 ──
+  const NEG = { border: 'border-blue-500/60',  badge: 'bg-blue-500/15 text-blue-300'  } // (-) 파란색
+  const POS = { border: 'border-red-500/60',   badge: 'bg-red-500/15  text-red-300'   } // (+) 빨간색
+
+  // ── 공통 파일 맵 ──
+  const wMap = Object.fromEntries((s.top_written_files ?? []).map(f => [f.file, f.count]))
+  const rMap = Object.fromEntries((s.top_read_files ?? []).map(f => [f.file, f.count]))
+  const allFiles = Array.from(new Set([...Object.keys(wMap), ...Object.keys(rMap)]))
+    .map(file => ({ file, writes: wMap[file] ?? 0, reads: rMap[file] ?? 0 }))
+    .sort((a, b) => (b.writes + b.reads) - (a.writes + a.reads))
 
   // 지표 카드 정의
   const metrics: MetricDef[] = [
@@ -1748,8 +1787,8 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       label: 'Hook 이벤트',
       value: s.total_hook_events.toLocaleString(),
       sub: 'cline 훅 (Task/Tool/Prompt)',
-      color: 'border-blue-500/40',
-      badge: 'bg-blue-500/10 text-blue-400',
+      color: 'border-gray-700',
+      badge: 'bg-gray-700/50 text-gray-400',
       formula: 'Cline이 작업하는 동안 발생한 모든 활동 이벤트 수\n(Task시작·완료·취소 / 도구 사용 전·후 / 프롬프트 제출 등)',
       computation: `수집된 훅 이벤트 합계 = ${s.total_hook_events.toLocaleString()}개\n\n이벤트 유형 분포 (상위):\n${
         Object.entries(s.event_type_counts ?? {})
@@ -1783,8 +1822,8 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       label: 'GitCommit',
       value: s.total_git_events.toLocaleString(),
       sub: 'git 커밋 추적 이벤트',
-      color: 'border-pink-500/40',
-      badge: 'bg-pink-500/10 text-pink-400',
+      color: 'border-gray-700',
+      badge: 'bg-gray-700/50 text-gray-400',
       formula: '프로젝트에 기록된 git 커밋의 총 개수',
       computation: `기록된 커밋 수 = ${s.total_git_events.toLocaleString()}개`,
       interpretation: `${s.total_git_events}개의 커밋이 코드베이스에 저장됐습니다.`,
@@ -1807,8 +1846,8 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       label: '총 Task',
       value: s.total_tasks.toLocaleString(),
       sub: `재개 ${s.total_resumes}회 포함`,
-      color: 'border-violet-500/40',
-      badge: 'bg-violet-500/10 text-violet-400',
+      color: 'border-gray-700',
+      badge: 'bg-gray-700/50 text-gray-400',
       formula: 'Cline 사이드바에서 새 대화창(채팅)을 시작한 횟수',
       computation: `TaskStart 이벤트  = ${s.total_tasks}회\nTaskResume 이벤트 = ${s.total_resumes}회\n\n완료 종료 = ${(s.total_tasks - (s.tasks_ended_canceled ?? 0)).toLocaleString()}건\n취소 종료 = ${(s.tasks_ended_canceled ?? 0).toLocaleString()}건`,
       interpretation: `총 ${s.total_tasks}개 대화 중 ${s.tasks_ended_canceled ?? 0}개가 취소로 끝났습니다.`,
@@ -1835,11 +1874,11 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       },
     },
     {
-      label: 'TaskCancel 횟수',
+      label: 'Task 결함율',
       value: (s.total_task_cancel_events ?? 0).toLocaleString(),
       sub: '동일 Task에서 여러 번 취소 가능',
-      color: 'border-rose-500/40',
-      badge: 'bg-rose-500/10 text-rose-400',
+      color: NEG.border,
+      badge: NEG.badge,
       formula: '로그에 기록된 TaskCancel 이벤트 건수 (원시 카운트)',
       computation: `TaskCancel 이벤트 수 = ${s.total_task_cancel_events ?? 0}회\n취소 이후 재프롬프트 쌍 = ${s.post_cancel_prompt_pairs ?? 0}건\n\n취소 후 바로 다시 입력한 비율:\n= ${s.post_cancel_prompt_pairs ?? 0} ÷ ${s.total_task_cancel_events ?? 0} × 100\n= ${s.total_task_cancel_events ? Math.round((s.post_cancel_prompt_pairs ?? 0) / s.total_task_cancel_events * 100) : 0}%`,
       interpretation: `${s.total_task_cancel_events ?? 0}번 취소, 그 중 ${s.post_cancel_prompt_pairs ?? 0}번은 취소 직후 재프롬프트했습니다.`,
@@ -1865,75 +1904,11 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       },
     },
     {
-      label: '취소 종료 비율',
-      value: `${s.task_cancel_rate_pct ?? 0}%`,
-      sub: `취소 Task ${s.tasks_ended_canceled ?? 0} / 전체 ${s.total_tasks}`,
-      color: (s.task_cancel_rate_pct ?? 0) > 40 ? 'border-red-500/40' : 'border-slate-500/40',
-      badge: (s.task_cancel_rate_pct ?? 0) > 40 ? 'bg-red-500/10 text-red-400' : 'bg-slate-500/10 text-slate-400',
-      formula: '(취소 종료 Task 수 ÷ 전체 Task 수) × 100\n※ 한 번이라도 Cancel이 있으면 취소 종료로 집계',
-      computation: `취소로 끝난 Task  = ${s.tasks_ended_canceled ?? 0}건\n전체 Task 수      = ${s.total_tasks}건\n\n${s.tasks_ended_canceled ?? 0} ÷ ${s.total_tasks} × 100 = ${s.task_cancel_rate_pct ?? 0}%`,
-      interpretation: `전체 Task ${s.total_tasks}건 중 ${s.tasks_ended_canceled ?? 0}건(${s.task_cancel_rate_pct ?? 0}%)이 취소로 종료됐습니다.`,
-      description: '시작된 대화(Task) 중 "취소됨"으로 끝난 비율입니다. 높을수록 agent가 요청을 완주하지 못했다는 신호입니다.',
-      example: '낮을수록 좋습니다.\n40% 초과 → 절반 가까운 작업이 취소로 끝났습니다.',
-      detail: {
-        title: '취소 종료 Task 목록',
-        columns: [
-          { key: 'start_kst', label: '시작시각', mono: true },
-          { key: 'end_kst', label: '종료시각', mono: true },
-          { key: 'duration', label: '소요시간', align: 'right', mono: true },
-          { key: 'cancel_count', label: '취소횟수', align: 'right', mono: true },
-          { key: 'task', label: '초기 요청' },
-        ],
-        rows: tasks
-          .filter(t => t.status === '취소됨')
-          .map(t => ({
-            start_kst: t.start_kst,
-            end_kst: t.end_kst || '—',
-            duration: t.duration_sec != null ? `${t.duration_sec}s` : '—',
-            cancel_count: t.cancel_count,
-            task: (t.initial_task || t.first_prompt || '').slice(0, 60),
-          })),
-        emptyText: '취소 종료된 Task가 없습니다.',
-      },
-    },
-    {
-      label: 'TaskResume 율',
-      value: `${s.rework_rate}%`,
-      sub: `재개 ${s.total_resumes} / 전체 ${s.total_tasks}`,
-      color: s.rework_rate > 50 ? 'border-red-500/40' : 'border-emerald-500/40',
-      badge: s.rework_rate > 50 ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400',
-      formula: '전체 Task 중 중간에 멈췄다가 다시 이어서 한 비율\n= (재개 횟수 ÷ 전체 Task 수) × 100',
-      computation: `TaskResume 이벤트 = ${s.total_resumes}회\n전체 Task 수      = ${s.total_tasks}건\n\n${s.total_resumes} ÷ ${s.total_tasks} × 100 = ${s.rework_rate}%`,
-      interpretation: `Task ${s.total_tasks}건 중 ${s.total_resumes}번 작업이 중단 후 재개됐습니다.`,
-      description: 'Task가 한 번에 끝나지 않고 중단됐다가 재개된 비율입니다. 높으면 작업이 자주 막히거나 사용자가 개입해야 했다는 뜻입니다.',
-      example: '낮을수록 좋습니다 → agent가 한 번에 작업을 완료했습니다.\n50% 초과 → 절반 이상의 작업이 중간에 끊겼습니다.',
-      detail: {
-        title: '재개(Resume)된 Task 목록',
-        columns: [
-          { key: 'start_kst', label: '시작시각', mono: true },
-          { key: 'resume_count', label: '재개횟수', align: 'right', mono: true, highlight: true },
-          { key: 'status', label: '최종상태' },
-          { key: 'duration', label: '소요시간', align: 'right', mono: true },
-          { key: 'task', label: '초기 요청' },
-        ],
-        rows: tasks
-          .filter(t => t.resume_count > 0)
-          .map(t => ({
-            start_kst: t.start_kst,
-            resume_count: t.resume_count,
-            status: t.status,
-            duration: t.duration_sec != null ? `${t.duration_sec}s` : '—',
-            task: (t.initial_task || t.first_prompt || '').slice(0, 60),
-          })),
-        emptyText: '재개된 Task가 없습니다.',
-      },
-    },
-    {
       label: 'AI재업무율',
       value: `${s.file_rework_rate}%`,
       sub: `${s.file_rework_count}개 파일 중복 write`,
-      color: reworkBad ? 'border-red-500/40' : 'border-cyan-500/40',
-      badge: reworkBad ? 'bg-red-500/10 text-red-400' : 'bg-cyan-500/10 text-cyan-400',
+      color: NEG.border,
+      badge: NEG.badge,
       formula: '같은 파일을 2번 이상 수정한 파일의 비율 (AI가 수정한 것만 집계)\n= (중복 수정 파일 수 ÷ 수정한 전체 파일 수) × 100',
       computation: `AI가 2회 이상 수정한 파일  = ${s.file_rework_count}개\nAI가 수정한 전체 파일    = ${s.unique_written_files ?? '?'}개\n\n${s.file_rework_count} ÷ ${s.unique_written_files ?? '?'} × 100 = ${s.file_rework_rate}%\n\n※ 수작업 수정은 집계에 포함되지 않습니다.`,
       interpretation: `AI가 수정한 파일 ${s.unique_written_files ?? '?'}개 중 ${s.file_rework_count}개를 두 번 이상 고쳤습니다.`,
@@ -1955,97 +1930,56 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       },
     },
     {
-      label: 'Write / Read',
-      value: `${s.total_writes} / ${s.total_reads}`,
-      sub: 'write_to_file · read_file',
-      color: 'border-indigo-500/40',
-      badge: 'bg-indigo-500/10 text-indigo-400',
-      formula: '파일을 새로 쓴 횟수 / 파일을 읽어본 횟수',
-      computation: `쓰기(write_to_file 등) = ${s.total_writes}회\n읽기(read_file 등)    = ${s.total_reads}회\n\n읽기 : 쓰기 = ${s.read_write_ratio}x`,
-      interpretation: `쓰기 ${s.total_writes}회, 읽기 ${s.total_reads}회 — 파일 1개를 쓸 때 평균 ${s.read_write_ratio}번 읽었습니다.`,
-      description: 'agent가 파일을 생성·수정한 횟수(Write)와 파일을 열어본 횟수(Read)입니다. 읽기만 많고 쓰기가 적으면 agent가 결과물을 잘 못 만들고 있다는 신호일 수 있습니다.',
-      example: '쓰기 ≥ 읽기가 이상적입니다.\n읽기가 쓰기의 5배 이상 → 파일은 많이 보는데 실제 작업은 적습니다.',
+      label: 'AI수정빈도',
+      value: s.total_writes.toLocaleString(),
+      sub: 'write_to_file · replace_in_file',
+      color: NEG.border,
+      badge: NEG.badge,
+      formula: 'AI가 파일을 새로 쓰거나 수정한 총 횟수',
+      computation: `파일 쓰기 호출 = ${s.total_writes}회`,
+      interpretation: `AI가 파일을 총 ${s.total_writes}번 수정했습니다.`,
+      description: 'AI(agent)가 파일을 생성하거나 내용을 변경한 총 횟수입니다.',
+      example: '높을수록 → AI가 많은 코드를 작성·수정했습니다.',
       detail: {
-        title: '파일별 Read / Write 횟수 (상위 30개)',
+        title: 'AI수정빈도 — 파일별 Write 횟수',
         columns: [
           { key: 'rank', label: '#', align: 'right' },
           { key: 'file', label: '파일 경로', mono: true },
-          { key: 'writes', label: 'Write', align: 'right', mono: true },
-          { key: 'reads', label: 'Read', align: 'right', mono: true },
-          { key: 'rw', label: 'R/W', align: 'right', mono: true },
+          { key: 'writes', label: 'Write 횟수', align: 'right', mono: true, highlight: true },
         ],
-        rows: (() => {
-          const files = new Set([
-            ...(s.top_written_files ?? []).map(f => f.file),
-            ...(s.top_read_files ?? []).map(f => f.file),
-          ])
-          const wMap = Object.fromEntries((s.top_written_files ?? []).map(f => [f.file, f.count]))
-          const rMap = Object.fromEntries((s.top_read_files ?? []).map(f => [f.file, f.count]))
-          return Array.from(files)
-            .map(file => ({
-              file,
-              writes: wMap[file] ?? 0,
-              reads: rMap[file] ?? 0,
-              ratio: wMap[file] ? (rMap[file] ?? 0) / wMap[file] : 9999,
-            }))
-            .sort((a, b) => (b.writes + b.reads) - (a.writes + a.reads))
-            .slice(0, 30)
-            .map((f, i) => ({
-              rank: i + 1,
-              file: f.file,
-              writes: f.writes,
-              reads: f.reads,
-              rw: f.writes ? `${(f.reads / f.writes).toFixed(1)}x` : '—',
-            }))
-        })(),
+        rows: (s.top_written_files ?? []).map((f, i) => ({ rank: i + 1, file: f.file, writes: f.count })),
+        emptyText: '파일 쓰기 기록이 없습니다.',
       },
     },
     {
-      label: 'R/W 비율',
-      value: `${s.read_write_ratio}x`,
-      sub: ratioHigh ? '읽기 과다 → 효율 점검' : '적정 읽기 비율',
-      color: ratioHigh ? 'border-orange-500/40' : 'border-teal-500/40',
-      badge: ratioHigh ? 'bg-orange-500/10 text-orange-400' : 'bg-teal-500/10 text-teal-400',
-      formula: '파일을 1번 쓸 때 평균 몇 번 읽었는지\n= 읽기 횟수 ÷ 쓰기 횟수',
-      computation: `읽기 ${s.total_reads} ÷ 쓰기 ${s.total_writes} = ${s.read_write_ratio}x\n\n${ratioHigh ? `⚠ ${s.read_write_ratio}x — 쓰기 1번당 읽기가 ${s.read_write_ratio}번으로 높습니다.` : `✓ ${s.read_write_ratio}x — 적정 범위 내입니다.`}`,
-      interpretation: `파일을 1번 쓸 때 평균 ${s.read_write_ratio}번 읽었습니다.`,
-      description: '코드를 1번 작성하기 위해 파일을 몇 번이나 열어봤는지 나타냅니다. 숫자가 낮을수록 agent가 헤매지 않고 바로 코드를 만들었다는 뜻입니다.',
-      example: '0.5x → 쓰기 2번당 읽기 1번 (효율적)\n5.0x 초과 → 파일을 너무 많이 들여다보고 있습니다.',
+      label: 'AI투입정도',
+      value: s.total_reads.toLocaleString(),
+      sub: 'read_file · search_files',
+      color: NEG.border,
+      badge: NEG.badge,
+      formula: 'AI가 파일을 읽거나 검색한 총 횟수',
+      computation: `파일 읽기 호출 = ${s.total_reads}회\n파일 1개 쓸 때 평균 읽기 = ${s.read_write_ratio}x`,
+      interpretation: `AI가 파일을 총 ${s.total_reads}번 읽었습니다. 쓰기 대비 ${s.read_write_ratio}배 읽기가 발생했습니다.`,
+      description: 'AI가 파일을 읽어보거나 검색한 총 횟수입니다.',
+      example: '읽기가 쓰기의 5배 이상이면 AI가 탐색에 많은 비중을 쏟고 있습니다.',
       detail: {
-        title: 'R/W 비율 높은 파일 (읽기 과다)',
+        title: 'AI투입정도 — 파일별 Read 횟수',
         columns: [
           { key: 'rank', label: '#', align: 'right' },
           { key: 'file', label: '파일 경로', mono: true },
-          { key: 'reads', label: 'Read', align: 'right', mono: true },
+          { key: 'reads', label: 'Read 횟수', align: 'right', mono: true, highlight: true },
           { key: 'writes', label: 'Write', align: 'right', mono: true },
-          { key: 'rw', label: 'R/W', align: 'right', mono: true, highlight: true },
         ],
-        rows: (() => {
-          const wMap = Object.fromEntries((s.top_written_files ?? []).map(f => [f.file, f.count]))
-          const rMap = Object.fromEntries((s.top_read_files ?? []).map(f => [f.file, f.count]))
-          const files = new Set([...Object.keys(wMap), ...Object.keys(rMap)])
-          return Array.from(files)
-            .map(file => ({ file, writes: wMap[file] ?? 0, reads: rMap[file] ?? 0 }))
-            .filter(f => f.writes > 0)
-            .sort((a, b) => (b.reads / b.writes) - (a.reads / a.writes))
-            .slice(0, 30)
-            .map((f, i) => ({
-              rank: i + 1,
-              file: f.file,
-              reads: f.reads,
-              writes: f.writes,
-              rw: `${(f.reads / f.writes).toFixed(1)}x`,
-            }))
-        })(),
-        emptyText: '파일 데이터가 없습니다.',
+        rows: allFiles.slice(0, 30).map((f, i) => ({ rank: i + 1, file: f.file, reads: f.reads, writes: f.writes })),
+        emptyText: '파일 읽기 기록이 없습니다.',
       },
     },
     {
       label: 'AI작업 효율성',
       value: `${s.efficiency_score ?? 0}`,
       sub: efficiencyGood ? 'AI 코드 생성 효율 양호' : '개선 여지 있음',
-      color: efficiencyGood ? 'border-emerald-500/40' : 'border-yellow-500/40',
-      badge: efficiencyGood ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400',
+      color: POS.border,
+      badge: POS.badge,
       formula: '= (1 - AI재업무율) × R/W비율\n(R/W = 읽기 ÷ 쓰기)',
       computation: `(1 - AI재업무율) × R/W\n= (1 - ${(s.file_rework_rate / 100).toFixed(2)}) × ${s.read_write_ratio}\n= ${(1 - s.file_rework_rate / 100).toFixed(2)} × ${s.read_write_ratio}\n= ${s.efficiency_score ?? 0}`,
       interpretation: `재업무율 ${s.file_rework_rate}%, R/W ${s.read_write_ratio}x 기준 효율 점수: ${s.efficiency_score ?? 0}`,
@@ -2082,234 +2016,224 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
   ]
 
   return (
-    <div className="space-y-3">
-      {/* 지표 카드 그리드 */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-        {metrics.map(m => <MetricCard key={m.label} metric={m} />)}
+    <div className="space-y-4">
 
-        {/* 취소→재프롬프트 카드 — 클릭 시 전용 모달 */}
-        <button
-          onClick={() => setCancelModalOpen(true)}
-          className="bg-gray-900 rounded-xl border border-fuchsia-500/40 p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
-        >
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-fuchsia-500/10 text-fuchsia-400">
-            취소→재프롬프트
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">
-            {(s.post_cancel_prompt_pairs ?? 0).toLocaleString()}
-          </p>
-          <p className="text-gray-500 text-xs leading-tight">짝 매칭된 후속 발화 건수</p>
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-        </button>
+      {/* ── 기본 정보 ── */}
+      <SectionRow label="기본 정보" color="info">
+        <div className="grid grid-cols-3 gap-3">
+          {metrics.filter(m => ['Hook 이벤트', 'GitCommit', '총 Task'].includes(m.label))
+            .map(m => <MetricCard key={m.label} metric={m} />)}
+        </div>
+      </SectionRow>
 
-        {/* 에이전트 자율성 카드 */}
-        <button
-          onClick={() => setAutonomyOpen(true)}
-          className={`bg-gray-900 rounded-xl border p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95
-            ${autonomyGood ? 'border-emerald-500/40' : autonomyMid ? 'border-sky-500/40' : 'border-rose-500/40'}`}
-        >
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit
-            ${autonomyGood ? 'bg-emerald-500/10 text-emerald-400' : autonomyMid ? 'bg-sky-500/10 text-sky-400' : 'bg-rose-500/10 text-rose-400'}`}>
-            에이전트 자율성
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">{autonomyPct}<span className="text-sm text-gray-500 font-normal ml-0.5">%</span></p>
-          <p className="text-gray-500 text-xs leading-tight">
-            {autonomyGood ? '매우 높은 자율성' : autonomyMid ? '양호한 자율성' : '사람 개입 多'} · 전체 행동 기준
-          </p>
-          {/* 미니 바 (agent/mixed/human) */}
-          {((s.agent_action_count ?? 0) + (s.human_action_count ?? 0) + (s.mixed_action_count ?? 0)) > 0 && (() => {
-            const tot = (s.agent_action_count ?? 0) + (s.human_action_count ?? 0) + (s.mixed_action_count ?? 0)
-            return (
-              <div className="flex h-1 rounded-full overflow-hidden mt-1">
-                <div className="bg-emerald-500/70" style={{ width: `${(s.agent_action_count ?? 0) / tot * 100}%` }} />
-                <div className="bg-sky-500/60"     style={{ width: `${(s.mixed_action_count ?? 0) / tot * 100}%` }} />
-                <div className="bg-rose-500/60"    style={{ width: `${(s.human_action_count ?? 0) / tot * 100}%` }} />
-              </div>
-            )
-          })()}
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-        </button>
+      {/* ── PCL ── */}
+      <SectionRow label="PCL" sub="Performance Constancy Level" color="blue">
+        <div className="grid grid-cols-3 gap-3">
+          {metrics.filter(m => ['AI수정빈도', 'AI재업무율', 'AI투입정도'].includes(m.label))
+            .sort((a, b) => ['AI수정빈도', 'AI재업무율', 'AI투입정도'].indexOf(a.label) - ['AI수정빈도', 'AI재업무율', 'AI투입정도'].indexOf(b.label))
+            .map(m => <MetricCard key={m.label} metric={m} />)}
+        </div>
+      </SectionRow>
 
-        {/* 사람 개입 횟수 카드 */}
-        <button
-          onClick={() => setAutonomyOpen(true)}
-          className="bg-gray-900 rounded-xl border border-rose-500/40 p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
-        >
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-rose-500/10 text-rose-400">
-            사람 개입 횟수
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">
-            {(s.human_action_count ?? 0).toLocaleString()}
-          </p>
-          <p className="text-gray-500 text-xs leading-tight">
-            취소 {(s.human_actions_breakdown?.TaskCancel ?? 0)}회 · 재지시 {(s.human_actions_breakdown?.UserPromptSubmit ?? 0)}회
-          </p>
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-        </button>
-
-        {/* 카드: Auto-Approve 활성화에도 사람이 직접 처리한 항목 */}
-        <button
-          onClick={() => setManualApprovalOpen(true)}
-          className={`bg-gray-900 rounded-xl border p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95
-            ${(manualTotal + humanInteractionItems.length) > 0 ? 'border-amber-500/40' : 'border-gray-700'}`}
-        >
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit
-            ${(manualTotal + humanInteractionItems.length) > 0 ? 'bg-amber-500/10 text-amber-400' : 'bg-gray-700/50 text-gray-500'}`}>
-            Auto-Approve에도 필수 인간 처리
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">
-            {(manualTotal + humanInteractionItems.length).toLocaleString()}
-          </p>
-          <p className="text-gray-500 text-xs leading-tight">
-            승인요청 {manualTotal} · 질문·선택 응답 {humanInteractionItems.length}
-          </p>
-          {humanInteractionItems.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400/80">
-                질문응답 {humanInteractionItems.filter(i => i.interaction_type === 'ask_followup').length}
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/80">
-                플랜응답 {humanInteractionItems.filter(i => i.interaction_type === 'plan_mode').length}
-              </span>
-            </div>
-          )}
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-        </button>
-
-        {/* 카드: Auto-Approve로 자동 처리된 업무 단위 */}
-        <button
-          onClick={() => setAutoWorkOpen(true)}
-          className={`bg-gray-900 rounded-xl border p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95
-            ${autoTotal > 0 ? 'border-blue-500/40' : 'border-gray-700'}`}
-        >
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit
-            ${autoTotal > 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-700/50 text-gray-500'}`}>
-            Auto-Approve 자동 처리 단위
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">{autoTotal.toLocaleString()}</p>
-          <p className="text-gray-500 text-xs leading-tight">
-            {autoTotal === 0 ? 'Auto-Approve 자동 실행 없음' : '승인 필요했지만 자동 통과된 작업'}
-          </p>
-          {autoTotal > 0 && (() => {
-            const cats = Object.entries(s.auto_approve_by_category ?? {})
-              .filter(([, v]) => v.auto > 0)
-              .sort((a, b) => b[1].auto - a[1].auto)
-              .slice(0, 3)
-            return (
+      {/* ── PNL ── */}
+      <SectionRow label="PNL" sub="In-project Nativeness Level" color="purple">
+        <div className="grid grid-cols-4 gap-3">
+          {/* Task 결함율 (-) */}
+          {metrics.filter(m => m.label === 'Task 결함율').map(m => <MetricCard key={m.label} metric={m} />)}
+          {/* HITL 승인수 (-) */}
+          <button
+            onClick={() => setManualApprovalOpen(true)}
+            className="bg-gray-900 rounded-xl border border-blue-500/60 p-4 flex flex-col gap-1.5 relative group
+              text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
+          >
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-blue-500/15 text-blue-300">
+              HITL 승인수
+            </span>
+            <p className="text-2xl font-bold text-white tracking-tight">
+              {(manualTotal + humanInteractionItems.length).toLocaleString()}
+            </p>
+            <p className="text-gray-500 text-xs leading-tight">
+              승인요청 {manualTotal} · 질문·선택 {humanInteractionItems.length}
+            </p>
+            {humanInteractionItems.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-0.5">
-                {cats.map(([cat, v]) => (
-                  <span key={cat} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400/80 font-mono">
-                    {cat} {v.auto}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400/80">
+                  질문 {humanInteractionItems.filter(i => i.interaction_type === 'ask_followup').length}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400/80">
+                  플랜 {humanInteractionItems.filter(i => i.interaction_type === 'plan_mode').length}
+                </span>
+              </div>
+            )}
+            <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
+          </button>
+          {/* AI 자율성 (+) */}
+          <button
+            onClick={() => setAutonomyOpen(true)}
+            className="bg-gray-900 rounded-xl border border-red-500/60 p-4 flex flex-col gap-1.5 relative group
+              text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
+          >
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-red-500/15 text-red-300">
+              AI 자율성
+            </span>
+            <p className="text-2xl font-bold text-white tracking-tight">{autonomyPct}<span className="text-sm text-gray-500 font-normal ml-0.5">%</span></p>
+            <p className="text-gray-500 text-xs leading-tight">
+              {autonomyGood ? '매우 높은 자율성' : autonomyMid ? '양호한 자율성' : '사람 개입 多'} · 전체 행동 기준
+            </p>
+            {((s.agent_action_count ?? 0) + (s.human_action_count ?? 0) + (s.mixed_action_count ?? 0)) > 0 && (() => {
+              const tot = (s.agent_action_count ?? 0) + (s.human_action_count ?? 0) + (s.mixed_action_count ?? 0)
+              return (
+                <div className="flex h-1 rounded-full overflow-hidden mt-1">
+                  <div className="bg-emerald-500/70" style={{ width: `${(s.agent_action_count ?? 0) / tot * 100}%` }} />
+                  <div className="bg-sky-500/60"     style={{ width: `${(s.mixed_action_count ?? 0) / tot * 100}%` }} />
+                  <div className="bg-rose-500/60"    style={{ width: `${(s.human_action_count ?? 0) / tot * 100}%` }} />
+                </div>
+              )
+            })()}
+            <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
+          </button>
+          {/* AI 자동승인수 (+) */}
+          <button
+            onClick={() => setAutoWorkOpen(true)}
+            className="bg-gray-900 rounded-xl border border-red-500/60 p-4 flex flex-col gap-1.5 relative group
+              text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
+          >
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-red-500/15 text-red-300">
+              AI 자동승인수
+            </span>
+            <p className="text-2xl font-bold text-white tracking-tight">{autoTotal.toLocaleString()}</p>
+            <p className="text-gray-500 text-xs leading-tight">
+              {autoTotal === 0 ? 'Auto-Approve 자동 실행 없음' : '자동 통과된 승인 요청'}
+            </p>
+            {autoTotal > 0 && (() => {
+              const cats = Object.entries(s.auto_approve_by_category ?? {})
+                .filter(([, v]) => v.auto > 0)
+                .sort((a, b) => b[1].auto - a[1].auto)
+                .slice(0, 3)
+              return (
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {cats.map(([cat, v]) => (
+                    <span key={cat} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400/80 font-mono">
+                      {cat} {v.auto}
+                    </span>
+                  ))}
+                </div>
+              )
+            })()}
+            <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
+          </button>
+        </div>
+      </SectionRow>
+
+      {/* ── BCL ── */}
+      <SectionRow label="BCL" sub="Biz-value Creation Level" color="emerald">
+        <div className="grid grid-cols-3 gap-3">
+          {/* 토큰 사용량 (-) */}
+          {(() => {
+            const estTokens = s.est_total_tokens ?? 0
+            const models = s.est_by_model ?? []
+            const fmtTok = (n: number) =>
+              n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
+            const totalIn  = models.reduce((a, m) => a + m.tokens_in, 0)
+            const totalOut = models.reduce((a, m) => a + m.tokens_out, 0)
+            return (
+              <button
+                onClick={() => setTokenUsageOpen(true)}
+                className="bg-gray-900 rounded-xl border border-blue-500/60 p-4 flex flex-col gap-1.5 relative group
+                  text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-blue-500/15 text-blue-300">
+                    토큰 사용량
                   </span>
-                ))}
+                  <span className="text-[9px] text-blue-400/50">(추정)</span>
+                </div>
+                <p className="text-2xl font-bold text-white tracking-tight">
+                  {fmtTok(estTokens)}
+                  <span className="text-xs text-gray-500 font-normal ml-1">(추정)</span>
+                </p>
+                <p className="text-gray-500 text-xs leading-tight">
+                  in {fmtTok(totalIn)} / out {fmtTok(totalOut)}
+                </p>
+                <p className="text-[10px] text-blue-400/60">
+                  {models.length}개 모델 · 텍스트 볼륨 기반 추정
+                </p>
+                <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
+              </button>
+            )
+          })()}
+          {/* AI code quality (+) */}
+          {(() => {
+            const fl = projectFirstLast
+            const hasData = fl && fl.file_count > 0
+            const avgScore = hasData ? Math.round(((fl!.L1 + fl!.L2 + fl!.L3 + fl!.L4) / 4) * 100) : null
+            const l4Pct   = hasData ? Math.round(fl!.L4 * 100) : null
+            const scoreColor = (v: number) =>
+              v >= 80 ? 'text-emerald-300' : v >= 55 ? 'text-blue-300' : v >= 30 ? 'text-amber-300' : 'text-red-300'
+            const LAYER_DESC: Record<string, string> = {
+              L1: 'Lev', L2: 'BLEU', L3: '구조', L4: '의미',
+            }
+            return (
+              <div className="bg-gray-900 rounded-xl border border-red-500/60 p-4 flex flex-col gap-1.5 relative">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-red-500/15 text-red-300">
+                  AI code quality
+                </span>
+
+                {projectFirstLastLoading ? (
+                  <>
+                    <p className="text-2xl font-bold text-gray-600 tracking-tight">…</p>
+                    <p className="text-gray-600 text-xs">유사도 계산 중</p>
+                  </>
+                ) : hasData && avgScore !== null ? (
+                  <>
+                    <p className={`text-2xl font-bold tracking-tight ${scoreColor(avgScore)}`}>
+                      {avgScore}%
+                      <span className="text-sm text-gray-500 font-normal ml-1">avg L1–L4</span>
+                    </p>
+                    <p className="text-gray-500 text-xs leading-tight">
+                      {fl!.first_sha_short} → {fl!.last_sha_short} · 전체 {fl!.file_count}개 파일
+                      {fl!.new_file_count != null && fl!.new_file_count > 0 && (
+                        <span className="text-gray-600 ml-1">(신규 {fl!.new_file_count}개 0점)</span>
+                      )}
+                    </p>
+                    {/* L1~L4 미니 바 */}
+                    <div className="grid grid-cols-4 gap-1 mt-1">
+                      {(['L1','L2','L3','L4'] as const).map(k => {
+                        const pct = Math.round(fl![k] * 100)
+                        return (
+                          <div key={k} className="flex flex-col items-center gap-0.5">
+                            <div className="w-full bg-gray-800 rounded-full h-1.5">
+                              <div className={`h-1.5 rounded-full ${
+                                pct >= 80 ? 'bg-emerald-500' : pct >= 55 ? 'bg-blue-500' : pct >= 30 ? 'bg-amber-500' : 'bg-red-500'
+                              }`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-[9px] text-gray-500">{LAYER_DESC[k]} {pct}%</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {fl && (
+                      <p className="text-[10px] text-gray-600">
+                        실측 {fl.common_file_count ?? fl.file_count}개 · 의미유사도 {l4Pct}%
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold text-gray-600 tracking-tight">—</p>
+                    <p className="text-gray-600 text-xs leading-tight">
+                      {fl && fl.file_count === 0 ? '공통 소스 파일 없음' : '백엔드 연결 시 측정'}
+                    </p>
+                  </>
+                )}
               </div>
             )
           })()}
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-        </button>
+          {/* AI작업 효율성 (+) */}
+          {metrics.filter(m => m.label === 'AI작업 효율성').map(m => <MetricCard key={m.label} metric={m} />)}
+        </div>
+      </SectionRow>
 
-        {/* Auto-Approve 카드 — 클릭 시 전용 모달 */}
-        <button
-          onClick={() => setAutoApproveOpen(true)}
-          className="bg-gray-900 rounded-xl border border-orange-500/40 p-4 flex flex-col gap-1.5 relative group
-            text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
-        >
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-orange-500/10 text-orange-400">
-            Auto-Approve
-          </span>
-          <p className="text-2xl font-bold text-white tracking-tight">
-            {autoTotal + safeTotal}<span className="text-sm text-gray-500 font-normal ml-1">/ {autoTotal + manualTotal + safeTotal}</span>
-          </p>
-          <p className="text-gray-500 text-xs leading-tight">
-            {manualTotal > 0 ? `수동 승인 ${manualTotal}회 있음` : '수동 승인 없음'}
-          </p>
-          {/* 미니 바 */}
-          {(autoTotal + manualTotal + safeTotal) > 0 && (
-            <div className="flex h-1 rounded-full overflow-hidden mt-1">
-              <div className="bg-emerald-500/60" style={{ width: `${safeTotal / (autoTotal + manualTotal + safeTotal) * 100}%` }} />
-              <div className="bg-blue-500/60" style={{ width: `${autoTotal / (autoTotal + manualTotal + safeTotal) * 100}%` }} />
-              <div className="bg-amber-500/60" style={{ width: `${manualTotal / (autoTotal + manualTotal + safeTotal) * 100}%` }} />
-            </div>
-          )}
-          <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">?</span>
-        </button>
-
-        {/* 토큰 추정 비용 카드 */}
-        {(() => {
-          const estCost = s.est_total_cost_usd ?? 0
-          const estTokens = s.est_total_tokens ?? 0
-          const topModel = (s.est_by_model ?? [])[0]
-          const fmtTok = (n: number) =>
-            n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : String(n)
-          return (
-            <button
-              onClick={() => setTokenEstOpen(true)}
-              className="bg-gray-900 rounded-xl border border-yellow-500/30 p-4 flex flex-col gap-1.5 relative group
-                text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-yellow-500/10 text-yellow-400">
-                  AI 토큰 추정 비용
-                </span>
-                <span className="text-[9px] text-orange-400/70">(예시)</span>
-              </div>
-              <p className="text-2xl font-bold text-white tracking-tight">
-                ${estCost.toFixed(3)}
-                <span className="text-xs text-gray-500 font-normal ml-1">(추정)</span>
-              </p>
-              <p className="text-gray-500 text-xs leading-tight">
-                ~{fmtTok(estTokens)} 토큰 <span className="text-gray-600">(추정)</span>
-              </p>
-              {topModel && (
-                <span className="text-[10px] text-yellow-400/60 font-mono truncate">
-                  {topModel.model} ${topModel.cost_usd.toFixed(3)}
-                </span>
-              )}
-              <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-            </button>
-          )
-        })()}
-
-        {/* 토큰 추정 사용량 카드 */}
-        {(() => {
-          const estTokens = s.est_total_tokens ?? 0
-          const models = s.est_by_model ?? []
-          const fmtTok = (n: number) =>
-            n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n)
-          const totalIn  = models.reduce((a, m) => a + m.tokens_in, 0)
-          const totalOut = models.reduce((a, m) => a + m.tokens_out, 0)
-          return (
-            <button
-              onClick={() => setTokenUsageOpen(true)}
-              className="bg-gray-900 rounded-xl border border-cyan-500/30 p-4 flex flex-col gap-1.5 relative group
-                text-left w-full hover:brightness-110 transition-all cursor-pointer active:scale-95"
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full w-fit bg-cyan-500/10 text-cyan-400">
-                  AI 토큰 추정 사용량
-                </span>
-                <span className="text-[9px] text-cyan-400/50">(예시)</span>
-              </div>
-              <p className="text-2xl font-bold text-white tracking-tight">
-                {fmtTok(estTokens)}
-                <span className="text-xs text-gray-500 font-normal ml-1">(추정)</span>
-              </p>
-              <p className="text-gray-500 text-xs leading-tight">
-                in {fmtTok(totalIn)} / out {fmtTok(totalOut)} <span className="text-gray-600">(추정)</span>
-              </p>
-              <p className="text-[10px] text-cyan-400/60">
-                {models.length}개 모델 · 텍스트 볼륨 기반 추정
-              </p>
-              <span className="absolute top-3 right-3 text-gray-700 text-[10px] group-hover:text-gray-400 transition-colors">↗</span>
-            </button>
-          )
-        })()}
-      </div>
       {autoApproveOpen && (
         <AutoApproveModal summary={s} onClose={() => setAutoApproveOpen(false)} />
       )}
