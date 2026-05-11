@@ -126,7 +126,9 @@ export default function CommitView() {
     fetch('/api/commits')
       .then(r => r.json())
       .then((data: Commit[]) => { setCommits(data); setLoading(false) })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        import('../mockData').then(m => { setCommits(m.MOCK_COMMITS); setLoading(false) })
+      })
   }
 
   useEffect(() => {

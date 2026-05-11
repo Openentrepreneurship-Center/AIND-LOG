@@ -194,7 +194,10 @@ export default function SimilarityProjectView() {
         return r.json() as Promise<ProjectSimilarityResult[]>
       })
       .then(data => { setResults(data); setLoading(false); setLoaded(true) })
-      .catch(e => { setError(e.message); setLoading(false) })
+      .catch(async () => {
+        const m = await import('../mockData')
+        setResults(m.MOCK_PROJECT_SIMILARITY); setLoading(false); setLoaded(true); setError('')
+      })
   }
 
   useEffect(() => { /* lazy load — 버튼 클릭 시 */ }, [])

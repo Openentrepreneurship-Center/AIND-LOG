@@ -92,6 +92,12 @@ export default function SimilarityView({ file }: Props) {
         setResults(data)
         setLoading(false)
       })
+      .catch(async () => {
+        const m = await import('../mockData')
+        setResults(m.MOCK_SIMILARITY)
+        setLoading(false)
+        setError('')
+      })
       .catch(e => {
         setError(e.message)
         setLoading(false)

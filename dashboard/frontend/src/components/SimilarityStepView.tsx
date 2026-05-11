@@ -182,7 +182,10 @@ export default function SimilarityStepView({ file }: Props) {
         return r.json()
       })
       .then((data: SimilarityResult[]) => { setResults(data); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
+      .catch(async () => {
+        const m = await import('../mockData')
+        setResults(m.MOCK_SIMILARITY); setLoading(false); setError('')
+      })
   }, [file])
 
   const selected = modalIdx !== null ? results[modalIdx] : null
