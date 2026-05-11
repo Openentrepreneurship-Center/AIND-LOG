@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd dashboard/frontend && npm install && npm run build",
+  "outputDirectory": "dashboard/frontend/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

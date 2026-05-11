@@ -41,8 +41,23 @@ export default function App() {
     })
   }, [])
 
+  // VITE_API_BASE_URL 환경변수로 백엔드 주소 지정 가능 (Vercel 등 외부 배포 시)
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+
+  // 초기 데이터 REST fetch (SSE 연결 전에 즉시 렌더링)
   useEffect(() => {
-    const es = new EventSource('/api/stream')
+    fetch(`${API_BASE}/api/data`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: DashboardData) => {
+        setData(d)
+        setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
+      })
+      .catch(() => { /* 백엔드 없으면 SSE에서 재시도 */ })
+  }, [API_BASE])
+
+  // SSE 실시간 업데이트
+  useEffect(() => {
+    const es = new EventSource(`${API_BASE}/api/stream`)
     esRef.current = es
     es.onopen = () => setConnected(true)
     es.onmessage = (e: MessageEvent) => {
@@ -56,7 +71,7 @@ export default function App() {
       setTimeout(() => { es.close(); esRef.current = null }, 3000)
     }
     return () => es.close()
-  }, [])
+  }, [API_BASE])
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
@@ -117,9 +132,18 @@ export default function App() {
       {/* ── Body ── */}
       <main className="flex-1 p-5 overflow-auto">
         {!data ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-600">
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-600">
             <div className="w-7 h-7 border-2 border-gray-800 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm">로딩 중…</p>
+            <p className="text-sm">백엔드 연결 대기 중…</p>
+            {!connected && (
+              <div className="text-center text-xs text-gray-700 space-y-1">
+                <p>백엔드 서버(<code className="text-gray-500">/api</code>)에 연결할 수 없습니다.</p>
+                <p>
+                  FastAPI 서버를 별도로 배포하고{' '}
+                  <code className="text-gray-500">VITE_API_BASE_URL</code> 환경변수를 설정해주세요.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <>
