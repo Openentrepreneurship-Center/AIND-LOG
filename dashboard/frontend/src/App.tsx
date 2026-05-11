@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { DashboardData, ProjectFirstLastSimilarity, ProjectSimilarityResult, ProjectFromFirstItem } from './types'
+import { DashboardData, ProjectFirstLastSimilarity, ProjectSimilarityResult, ProjectFromFirstItem, Commit } from './types'
 // ProjectFirstLastSimilarity re-exported as PFLType in ProjectFirstLastPanel
 import { MOCK_DATA } from './mockData'
 import SummaryCards from './components/SummaryCards'
@@ -10,6 +10,7 @@ import CommitView from './components/CommitView'
 import SimilarityProjectView from './components/SimilarityProjectView'
 import SimilarityFromFirstView from './components/SimilarityFromFirstView'
 import CancelFollowupsPanel from './components/CancelFollowupsPanel'
+import PeriodSelector, { PeriodState, periodToRange } from './components/PeriodSelector'
 import { ProjectFirstLastSimilarity as PFLType } from './types'
 
 function ProjectFirstLastPanel({ data, loading }: { data?: PFLType; loading: boolean }) {
@@ -91,6 +92,9 @@ export default function App() {
   const [projectFirstLastLoading, setProjectFirstLastLoading] = useState(false)
   const [simProjectData, setSimProjectData] = useState<ProjectSimilarityResult[] | null>(null)
   const [simFromFirstData, setSimFromFirstData] = useState<ProjectFromFirstItem[] | null>(null)
+  const [simFromFirstLoading, setSimFromFirstLoading] = useState(true)
+  const [period, setPeriod] = useState<PeriodState>({ unit: 'all', anchor: new Date() })
+  const [commits, setCommits] = useState<Commit[] | null>(null)
   const esRef = useRef<EventSource | null>(null)
 
   const toggleTheme = useCallback(() => {
@@ -104,20 +108,30 @@ export default function App() {
   // VITE_API_BASE_URL 환경변수로 백엔드 주소 지정 가능 (Vercel 등 외부 배포 시)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
-  // 초기 데이터 REST fetch → 실패 시 샘플 데이터 표시
+  // 기간 변경 시 API 재호출
   useEffect(() => {
-    fetch(`${API_BASE}/api/data`)
+    const { start_ts, end_ts } = periodToRange(period)
+    const params = new URLSearchParams()
+    if (start_ts !== null) params.set('start_ts', String(start_ts))
+    if (end_ts !== null)   params.set('end_ts',   String(end_ts))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 8000) // 8초 타임아웃
+    fetch(`${API_BASE}/api/data${qs}`, { signal: ctrl.signal })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: DashboardData) => {
+        clearTimeout(timer)
         setData(d)
         setIsMock(false)
         setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
       })
       .catch(() => {
+        clearTimeout(timer)
         setData(MOCK_DATA)
         setIsMock(true)
       })
-  }, [API_BASE])
+  }, [API_BASE, period])
 
   // 앱 로딩 시 similarity 관련 데이터 일괄 prefetch (탭 전환 시 재계산 없음)
   useEffect(() => {
@@ -132,10 +146,12 @@ export default function App() {
       })
     // 첫 커밋 기준 단계별 유사도 (from-first 그래프)
     // → 마지막 항목에서 project-first-last 값도 파생 (단일 계산으로 통일)
+    setSimFromFirstLoading(true)
     fetch(`${API_BASE}/api/similarity/project-from-first`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ProjectFromFirstItem[]) => {
         setSimFromFirstData(d)
+        setSimFromFirstLoading(false)
         // 마지막 커밋 항목으로 첫↔마지막 요약 카드 값 통일
         if (d.length > 0) {
           const last = d[d.length - 1]
@@ -159,16 +175,33 @@ export default function App() {
         setSimFromFirstData(m.MOCK_PROJECT_FROM_FIRST)
         setProjectFirstLast(m.MOCK_PROJECT_FIRST_LAST)
         setProjectFirstLastLoading(false)
+        setSimFromFirstLoading(false)
       })
   }, [API_BASE])
 
-  // SSE 실시간 업데이트 (연결되면 샘플 데이터 해제)
+  // 커밋 데이터 한 번만 fetch (탭 전환 시 재로딩 방지)
+  useEffect(() => {
+    fetch(`${API_BASE}/api/commits`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: Commit[]) => setCommits(d))
+      .catch(async () => {
+        const m = await import('./mockData')
+        setCommits(m.MOCK_COMMITS)
+      })
+  }, [API_BASE])
+
+  // SSE 실시간 업데이트 — 기간 필터 적용 중일 때는 SSE 덮어쓰기 무시
+  const periodRef = useRef(period)
+  useEffect(() => { periodRef.current = period }, [period])
+
   useEffect(() => {
     const es = new EventSource(`${API_BASE}/api/stream`)
     esRef.current = es
     es.onopen = () => setConnected(true)
     es.onmessage = (e: MessageEvent) => {
       try {
+        // 기간 필터 활성 중이면 SSE 데이터로 덮어쓰지 않음
+        if (periodRef.current.unit !== 'all') return
         setData(JSON.parse(e.data) as DashboardData)
         setIsMock(false)
         setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
@@ -245,6 +278,29 @@ export default function App() {
         </div>
       )}
 
+      {/* ── 기간 선택 바 ── */}
+      <div className={`border-b px-6 py-3 flex items-center justify-between shrink-0 ${
+        isDark ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/60'
+      }`}>
+        <div className="flex items-center gap-3">
+          <PeriodSelector value={period} onChange={setPeriod} isDark={isDark} />
+          {period.unit !== 'all' && (
+            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+              이벤트 기반 지표 필터 적용 중 · 유사도 차트는 전체 기간 기준
+            </span>
+          )}
+        </div>
+        {period.unit !== 'all' && (() => {
+          const { start_ts, end_ts } = periodToRange(period)
+          const fmt = (ts: number) => new Date(ts).toLocaleDateString('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+          return (
+            <span className={`text-xs font-mono ${isDark ? 'text-gray-700' : 'text-gray-400'}`}>
+              {start_ts && end_ts ? `${fmt(start_ts)} ~ ${fmt(end_ts)}` : ''}
+            </span>
+          )
+        })()}
+      </div>
+
       {/* ── Body ── */}
       <main className="flex-1 p-5 overflow-auto">
         {!data ? (
@@ -280,25 +336,51 @@ export default function App() {
               </div>
             )}
 
-            {/* ── AI코드 Quality 탭 — 프로젝트 전체 기준 통합 뷰 ── */}
-            {tab === 'similarity' && (
+            {/* ── AI코드 Quality 탭 ── */}
+            {tab === 'similarity' && (() => {
+              const { start_ts, end_ts } = periodToRange(period)
+              const filteredFromFirst = simFromFirstData
+                ? (start_ts || end_ts
+                    ? simFromFirstData.filter(d => {
+                        const ts = d.ts_kst ? new Date(d.ts_kst.replace(' ', 'T') + '+09:00').getTime() : null
+                        return ts !== null
+                          && (start_ts === null || ts >= start_ts)
+                          && (end_ts   === null || ts <= end_ts)
+                      })
+                    : simFromFirstData)
+                : undefined
+              const filteredProject = simProjectData
+                ? (start_ts || end_ts
+                    ? simProjectData.filter(d => {
+                        const ts = d.ts_kst ? new Date(d.ts_kst.replace(' ', 'T') + '+09:00').getTime() : null
+                        return ts !== null
+                          && (start_ts === null || ts >= start_ts)
+                          && (end_ts   === null || ts <= end_ts)
+                      })
+                    : simProjectData)
+                : undefined
+              return (
               <div className="space-y-4 max-w-7xl mx-auto">
                 {/* 상단: 초기 코드 유지율 추이 (각 커밋 vs 기준 커밋) */}
-                <SimilarityFromFirstView prefetchedData={simFromFirstData ?? undefined} />
+                <SimilarityFromFirstView
+                  prefetchedData={filteredFromFirst ?? undefined}
+                  parentLoading={simFromFirstLoading}
+                />
                 {/* 중단: 커밋별 코드 변경량 추이 (직전 커밋 vs 현재 커밋) */}
-                <SimilarityProjectView prefetchedData={simProjectData ?? undefined} />
+                <SimilarityProjectView prefetchedData={filteredProject ?? undefined} />
                 {/* 하단: 첫↔마지막 직접 비교 요약 */}
                 <ProjectFirstLastPanel
                   data={projectFirstLast ?? undefined}
                   loading={projectFirstLastLoading}
                 />
               </div>
-            )}
+              )
+            })()}
 
             {/* ── 커밋 탭 ── */}
             {tab === 'commits' && (
               <div className="max-w-7xl mx-auto">
-                <CommitView />
+                <CommitView prefetchedCommits={commits ?? undefined} />
               </div>
             )}
 

@@ -1136,10 +1136,31 @@ events.jsonl 전체를 파싱하여 대시보드에 필요한 모든 집계 데�
 - **tasks**   : taskId 단위 집계 (소요시간, 코드생성시간, 테스트 지표 등)
 - **events**  : 전체 이벤트 상세 (raw payload 포함)
 - **counts**  : 이벤트 종류·도구 사용 빈도
+
+쿼리 파라미터:
+- **start_ts** : 필터 시작 시각 (Unix ms, 포함)
+- **end_ts**   : 필터 종료 시각 (Unix ms, 포함)
 """,
 )
-def get_data() -> dict:
-    return process(load_events())
+def get_data(
+    start_ts: float | None = Query(None, description="필터 시작 시각 (Unix ms)"),
+    end_ts: float | None = Query(None, description="필터 종료 시각 (Unix ms)"),
+) -> dict:
+    events = load_events()
+    if start_ts is not None or end_ts is not None:
+        def _ts(e: dict) -> float:
+            """ts 필드가 str/int 혼합이므로 안전하게 float 변환"""
+            v = e.get("ts")
+            try:
+                return float(v) if v is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+        events = [
+            e for e in events
+            if (start_ts is None or _ts(e) >= start_ts)
+            and (end_ts is None or _ts(e) <= end_ts)
+        ]
+    return process(events)
 
 
 @app.get(
@@ -1267,15 +1288,29 @@ async def stream() -> StreamingResponse:
 
 
 # ── commit helpers ────────────────────────────────────────────────────────────
+_commits_cache: list[dict] | None = None
+_commits_cache_mtime: float | None = None
+
+
 def load_commits() -> list[dict]:
     """
     .cline-metrics/commits/ 디렉터리에서 .patch + .snapshot.json 파일을 읽어
     커밋 목록을 반환합니다. events.jsonl 의 GitCommit 이벤트와 매핑하여
     타임스탬프·taskId 도 함께 제공합니다.
+    commits 디렉터리 mtime이 바뀌지 않으면 캐시를 반환합니다.
     """
+    global _commits_cache, _commits_cache_mtime
     commits_dir = ROOT / "commits"
     if not commits_dir.exists():
         return []
+
+    # 디렉터리 mtime 기반 캐시 무효화
+    try:
+        cur_mtime = commits_dir.stat().st_mtime
+    except OSError:
+        cur_mtime = None
+    if _commits_cache is not None and cur_mtime == _commits_cache_mtime:
+        return _commits_cache
 
     reviewed_shas = {p.stem for p in FINAL_DIR.glob("*.marker")} if FINAL_DIR.exists() else set()
 
@@ -1342,6 +1377,8 @@ def load_commits() -> list[dict]:
             "snapshot_files": snapshot_files,
         })
 
+    _commits_cache = result
+    _commits_cache_mtime = cur_mtime
     return result
 
 
@@ -1630,6 +1667,25 @@ class ProjectSimilarityResult(BaseModel):
 
 
 _project_sim_cache: list[dict] | None = None
+_DISK_CACHE_PROJECT_SIM = ROOT / ".sim_project_cache.json"
+
+
+def _load_disk_cache_project_sim() -> list | None:
+    try:
+        if _DISK_CACHE_PROJECT_SIM.exists():
+            with _DISK_CACHE_PROJECT_SIM.open("r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def _save_disk_cache_project_sim(data: list) -> None:
+    try:
+        with _DISK_CACHE_PROJECT_SIM.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def _is_source(path: str) -> bool:
@@ -1671,6 +1727,11 @@ def get_project_similarity(
     global _project_sim_cache
     if not refresh and _project_sim_cache is not None:
         return _project_sim_cache
+    if not refresh:
+        disk = _load_disk_cache_project_sim()
+        if disk is not None:
+            _project_sim_cache = disk
+            return disk
 
     from similarity import compute_all
 
@@ -1785,6 +1846,7 @@ def get_project_similarity(
         })
 
     _project_sim_cache = results
+    _save_disk_cache_project_sim(results)
     return results
 
 
@@ -1965,6 +2027,29 @@ def get_repo_tree() -> dict:
 _project_from_first_cache: list | None = None
 _project_first_last_cache: dict | None = None
 
+# 디스크 캐시 경로 (재시작해도 재계산 안 해도 되게)
+_DISK_CACHE_FROM_FIRST = ROOT / ".sim_from_first_cache.json"
+
+
+def _load_disk_cache_from_first() -> list | None:
+    """디스크 캐시에서 from-first 유사도 데이터를 로드합니다."""
+    try:
+        if _DISK_CACHE_FROM_FIRST.exists():
+            with _DISK_CACHE_FROM_FIRST.open("r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def _save_disk_cache_from_first(data: list) -> None:
+    """from-first 유사도 데이터를 디스크에 저장합니다."""
+    try:
+        with _DISK_CACHE_FROM_FIRST.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
 
 @app.get(
     "/api/similarity/project-from-first",
@@ -1975,8 +2060,15 @@ def get_project_from_first_similarity(
     refresh: bool = Query(False, description="캐시 무시 여부"),
 ) -> list:
     global _project_from_first_cache
+    # 1) 메모리 캐시 확인
     if not refresh and _project_from_first_cache is not None:
         return _project_from_first_cache
+    # 2) 디스크 캐시 확인 (재시작 후에도 재계산 불필요)
+    if not refresh:
+        disk = _load_disk_cache_from_first()
+        if disk is not None:
+            _project_from_first_cache = disk
+            return disk
 
     from similarity import compute_all
 
@@ -2074,6 +2166,7 @@ def get_project_from_first_similarity(
         })
 
     _project_from_first_cache = results
+    _save_disk_cache_from_first(results)  # 디스크에도 저장 → 재시작 후 재계산 불필요
     return results
 
 @app.get(

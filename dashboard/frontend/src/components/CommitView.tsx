@@ -116,26 +116,19 @@ function SnapshotViewer({ files }: { files: Commit['snapshot_files'] }) {
 }
 
 // ── main component ─────────────────────────────────────────────────────────
-export default function CommitView() {
-  const [commits, setCommits] = useState<Commit[]>([])
+export default function CommitView({ prefetchedCommits }: { prefetchedCommits?: Commit[] }) {
+  const [commits, setCommits] = useState<Commit[]>(prefetchedCommits ?? [])
   const [modalSha, setModalSha] = useState<string | null>(null)
   const [tab, setTab] = useState<Record<string, 'diff' | 'snapshot'>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!prefetchedCommits)
 
-  const fetchCommits = () => {
-    fetch('/api/commits')
-      .then(r => r.json())
-      .then((data: Commit[]) => { setCommits(data); setLoading(false) })
-      .catch(() => {
-        import('../mockData').then(m => { setCommits(m.MOCK_COMMITS); setLoading(false) })
-      })
-  }
-
+  // prefetchedCommits가 업데이트되면 반영
   useEffect(() => {
-    fetchCommits()
-    const id = setInterval(fetchCommits, 5000)
-    return () => clearInterval(id)
-  }, [])
+    if (prefetchedCommits) {
+      setCommits(prefetchedCommits)
+      setLoading(false)
+    }
+  }, [prefetchedCommits])
 
   const getTab = (sha: string) => tab[sha] ?? 'diff'
   const setTabFor = (sha: string, t: 'diff' | 'snapshot') =>

@@ -45,14 +45,22 @@ function CustomTooltip({ active, payload, label }: any) {
 
 const ESTIMATED_SECS = 90  // 계산 예상 소요 시간 (초)
 
-export default function SimilarityFromFirstView({ prefetchedData }: { prefetchedData?: ProjectFromFirstItem[] }) {
+export default function SimilarityFromFirstView({
+  prefetchedData,
+  parentLoading = false,
+}: {
+  prefetchedData?: ProjectFromFirstItem[]
+  parentLoading?: boolean
+}) {
   const [data, setData] = useState<ProjectFromFirstItem[]>(prefetchedData ?? [])
-  const [loading, setLoading] = useState(!prefetchedData)
+  const [loading, setLoading] = useState(!prefetchedData && !parentLoading ? false : !prefetchedData)
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(new Set(['L1', 'L2', 'L3', 'L4']))
   const [error, setError] = useState(false)
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
+    // 부모가 이미 fetch 중이면 컴포넌트 자체 fetch 금지 (중복 방지)
+    if (parentLoading) { setLoading(true); return }
     if (prefetchedData) { setData(prefetchedData); setLoading(false); return }
     setLoading(true)
     setElapsed(0)
@@ -73,7 +81,7 @@ export default function SimilarityFromFirstView({ prefetchedData }: { prefetched
         setData(mock); setLoading(false); setError(true)
       })
     return () => clearInterval(timer)
-  }, [prefetchedData])
+  }, [prefetchedData, parentLoading])
 
   const refSha = data[0]?.ref_sha_short ?? data[0]?.sha_short
 

@@ -1874,14 +1874,44 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
       },
     },
     {
-      label: 'Task 결함율',
+      label: 'Task cancel 횟수',
       value: (s.total_task_cancel_events ?? 0).toLocaleString(),
-      sub: '동일 Task에서 여러 번 취소 가능',
+      sub: '정지 버튼 클릭 총 횟수',
       color: NEG.border,
       badge: NEG.badge,
       formula: '로그에 기록된 TaskCancel 이벤트 건수 (원시 카운트)',
       computation: `TaskCancel 이벤트 수 = ${s.total_task_cancel_events ?? 0}회\n취소 이후 재프롬프트 쌍 = ${s.post_cancel_prompt_pairs ?? 0}건\n\n취소 후 바로 다시 입력한 비율:\n= ${s.post_cancel_prompt_pairs ?? 0} ÷ ${s.total_task_cancel_events ?? 0} × 100\n= ${s.total_task_cancel_events ? Math.round((s.post_cancel_prompt_pairs ?? 0) / s.total_task_cancel_events * 100) : 0}%`,
       interpretation: `${s.total_task_cancel_events ?? 0}번 취소, 그 중 ${s.post_cancel_prompt_pairs ?? 0}번은 취소 직후 재프롬프트했습니다.`,
+      description: '프롬프트 실행 도중 정지(Cancel) 버튼을 누른 총 횟수입니다. 같은 Task 안에서 여러 번 취소해도 모두 카운트됩니다.',
+      example: '높을수록 → AI가 원하는 방향으로 진행하지 못해 자주 중단됐습니다.',
+      detail: {
+        title: '취소 이벤트가 발생한 Task',
+        columns: [
+          { key: 'start_kst', label: '시작시각', mono: true },
+          { key: 'cancel_count', label: '취소횟수', align: 'right', mono: true, highlight: true },
+          { key: 'status', label: '최종상태' },
+          { key: 'task', label: '초기 요청' },
+        ],
+        rows: tasks
+          .filter(t => t.cancel_count > 0)
+          .map(t => ({
+            start_kst: t.start_kst,
+            cancel_count: t.cancel_count,
+            status: t.status,
+            task: (t.initial_task || t.first_prompt || '').slice(0, 70),
+          })),
+        emptyText: '취소 이벤트가 없습니다.',
+      },
+    },
+    {
+      label: 'Task 결함율',
+      value: `${s.task_cancel_rate_pct ?? 0}%`,
+      sub: `취소 종료 ${s.tasks_ended_canceled ?? 0} / 전체 ${s.total_tasks}건`,
+      color: NEG.border,
+      badge: NEG.badge,
+      formula: '취소로 끝난 Task 수 ÷ 전체 Task 수 × 100',
+      computation: `취소 종료 Task = ${s.tasks_ended_canceled ?? 0}건\n전체 Task      = ${s.total_tasks}건\n\n결함율 = ${s.tasks_ended_canceled ?? 0} ÷ ${s.total_tasks} × 100 = ${s.task_cancel_rate_pct ?? 0}%`,
+      interpretation: `총 ${s.total_tasks}개 대화 중 ${s.tasks_ended_canceled ?? 0}개가 취소로 종료됐습니다.`,
       description: '작업 도중 사용자가 중단(Cancel)을 눌렀거나 agent가 취소 상태로 종료된 횟수입니다. 업무 품질의 보조 지표로 활용됩니다.',
       example: '높을수록 → 시도가 자주 끊겼습니다.\n낮을수록 → 한 번에 이어서 진행한 비율이 큽니다.',
       detail: {
@@ -2037,7 +2067,9 @@ export default function SummaryCards({ summary: s, cancelFollowups = [], manualA
 
       {/* ── PNL ── */}
       <SectionRow label="PNL" sub="In-project Nativeness Level" color="purple">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-3">
+          {/* Task cancel 횟수 (-) */}
+          {metrics.filter(m => m.label === 'Task cancel 횟수').map(m => <MetricCard key={m.label} metric={m} />)}
           {/* Task 결함율 (-) */}
           {metrics.filter(m => m.label === 'Task 결함율').map(m => <MetricCard key={m.label} metric={m} />)}
           {/* HITL 승인수 (-) */}
