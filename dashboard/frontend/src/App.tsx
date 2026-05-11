@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardData } from './types'
+import { MOCK_DATA } from './mockData'
 import SummaryCards from './components/SummaryCards'
 import TaskTable from './components/TaskTable'
 import EventLog from './components/EventLog'
@@ -24,6 +25,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 export default function App() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [connected, setConnected] = useState(false)
+  const [isMock, setIsMock] = useState(false)
   const [lastUpdated, setLastUpdated] = useState('')
   const [tab, setTab] = useState<Tab>('overview')
   const [similarityFile, setSimilarityFile] = useState(
@@ -44,18 +46,22 @@ export default function App() {
   // VITE_API_BASE_URL 환경변수로 백엔드 주소 지정 가능 (Vercel 등 외부 배포 시)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
-  // 초기 데이터 REST fetch (SSE 연결 전에 즉시 렌더링)
+  // 초기 데이터 REST fetch → 실패 시 샘플 데이터 표시
   useEffect(() => {
     fetch(`${API_BASE}/api/data`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: DashboardData) => {
         setData(d)
+        setIsMock(false)
         setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
       })
-      .catch(() => { /* 백엔드 없으면 SSE에서 재시도 */ })
+      .catch(() => {
+        setData(MOCK_DATA)
+        setIsMock(true)
+      })
   }, [API_BASE])
 
-  // SSE 실시간 업데이트
+  // SSE 실시간 업데이트 (연결되면 샘플 데이터 해제)
   useEffect(() => {
     const es = new EventSource(`${API_BASE}/api/stream`)
     esRef.current = es
@@ -63,6 +69,7 @@ export default function App() {
     es.onmessage = (e: MessageEvent) => {
       try {
         setData(JSON.parse(e.data) as DashboardData)
+        setIsMock(false)
         setLastUpdated(new Date().toLocaleTimeString('ko-KR'))
       } catch { /* ignore */ }
     }
@@ -129,21 +136,20 @@ export default function App() {
         </div>
       </header>
 
+      {/* ── 샘플 데이터 배너 ── */}
+      {isMock && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-6 py-2 flex items-center gap-2 text-xs text-amber-400 shrink-0">
+          <span className="font-bold">⚠ 샘플 데이터 표시 중</span>
+          <span className="text-amber-500/70">— 백엔드 서버에 연결할 수 없습니다. 실제 데이터를 보려면 FastAPI 서버를 실행하고 <code className="text-amber-300">VITE_API_BASE_URL</code>을 설정하세요.</span>
+        </div>
+      )}
+
       {/* ── Body ── */}
       <main className="flex-1 p-5 overflow-auto">
         {!data ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-gray-600">
+          <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-600">
             <div className="w-7 h-7 border-2 border-gray-800 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm">백엔드 연결 대기 중…</p>
-            {!connected && (
-              <div className="text-center text-xs text-gray-700 space-y-1">
-                <p>백엔드 서버(<code className="text-gray-500">/api</code>)에 연결할 수 없습니다.</p>
-                <p>
-                  FastAPI 서버를 별도로 배포하고{' '}
-                  <code className="text-gray-500">VITE_API_BASE_URL</code> 환경변수를 설정해주세요.
-                </p>
-              </div>
-            )}
+            <p className="text-sm">로딩 중…</p>
           </div>
         ) : (
           <>
