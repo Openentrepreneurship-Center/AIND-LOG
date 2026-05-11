@@ -154,7 +154,12 @@ export default function App() {
         }
         setProjectFirstLastLoading(false)
       })
-      .catch(() => { setProjectFirstLastLoading(false) })
+      .catch(async () => {
+        const m = await import('./mockData')
+        setSimFromFirstData(m.MOCK_PROJECT_FROM_FIRST)
+        setProjectFirstLast(m.MOCK_PROJECT_FIRST_LAST)
+        setProjectFirstLastLoading(false)
+      })
   }, [API_BASE])
 
   // SSE 실시간 업데이트 (연결되면 샘플 데이터 해제)

@@ -1,4 +1,4 @@
-import { DashboardData, Commit, SimilarityResult, ProjectSimilarityResult } from './types'
+import { DashboardData, Commit, SimilarityResult, ProjectSimilarityResult, ProjectFromFirstItem, ProjectFirstLastSimilarity } from './types'
 
 export const MOCK_DATA: DashboardData = {
   summary: {
@@ -357,3 +357,22 @@ export const MOCK_PROJECT_SIMILARITY: ProjectSimilarityResult[] = [
   { sha: 'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4', sha_short: 'c3d4e5f', prev_sha: 'b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3', prev_sha_short: 'b2c3d4e', message: 'feat: 결제 API 연동', ts_kst: '2026-05-08 11:30:00', files_changed: 4, added_files: 1, deleted_files: 0, total_files: 17, changed_size: 2900, total_size: 23400, scores: { L1: 0.88, L2: 0.85, L3: 0.90, L4: 0.92 }, raw_scores: { L1: 0.82, L2: 0.79, L3: 0.84, L4: 0.88 } },
   { sha: 'd4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5', sha_short: 'd4e5f6a', prev_sha: 'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4', prev_sha_short: 'c3d4e5f', message: 'fix: NPE 수정 및 예외 처리', ts_kst: '2026-05-08 12:40:00', files_changed: 2, added_files: 0, deleted_files: 0, total_files: 17, changed_size: 480, total_size: 23480, scores: { L1: 0.96, L2: 0.94, L3: 0.97, L4: 0.98 }, raw_scores: { L1: 0.93, L2: 0.91, L3: 0.95, L4: 0.96 } },
 ]
+
+export const MOCK_PROJECT_FROM_FIRST: ProjectFromFirstItem[] = [
+  { sha: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', sha_short: 'a1b2c3d', message: '기능구현 (초기)', ts_kst: '2026-05-08 09:00:00', file_count: 42, scores: { L1: 1.00, L2: 1.00, L3: 1.00, L4: 1.00 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3', sha_short: 'b2c3d4e', message: 'feat: 사용자 인증 모듈 추가', ts_kst: '2026-05-08 10:04:00', file_count: 52, scores: { L1: 0.91, L2: 0.89, L3: 0.88, L4: 0.94 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4', sha_short: 'c3d4e5f', message: 'feat: 결제 API 연동', ts_kst: '2026-05-08 11:30:00', file_count: 60, scores: { L1: 0.86, L2: 0.84, L3: 0.82, L4: 0.90 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'd4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5', sha_short: 'd4e5f6a', message: 'refactor: 서비스 레이어 전면 개편', ts_kst: '2026-05-08 13:10:00', file_count: 65, scores: { L1: 0.79, L2: 0.77, L3: 0.74, L4: 0.85 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6', sha_short: 'e5f6a1b', message: 'feat: 알림 시스템 구현', ts_kst: '2026-05-08 15:00:00', file_count: 74, scores: { L1: 0.74, L2: 0.72, L3: 0.69, L4: 0.81 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1', sha_short: 'f6a1b2c', message: 'feat: 관리자 대시보드 추가', ts_kst: '2026-05-09 09:30:00', file_count: 89, scores: { L1: 0.70, L2: 0.68, L3: 0.65, L4: 0.77 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'a2b3c4d5e6f7a2b3c4d5e6f7a2b3c4d5e6f7a2b3', sha_short: 'a2b3c4d', message: 'fix: 보안 취약점 패치', ts_kst: '2026-05-09 11:00:00', file_count: 91, scores: { L1: 0.69, L2: 0.67, L3: 0.64, L4: 0.76 }, ref_sha_short: 'a1b2c3d' },
+  { sha: 'b3c4d5e6f7a2b3c4d5e6f7a2b3c4d5e6f7a2b3c4', sha_short: 'b3c4d5e', message: 'feat: 통계 API 구현', ts_kst: '2026-05-10 09:00:00', file_count: 98, scores: { L1: 0.67, L2: 0.65, L3: 0.62, L4: 0.74 }, ref_sha_short: 'a1b2c3d' },
+]
+
+export const MOCK_PROJECT_FIRST_LAST: ProjectFirstLastSimilarity = {
+  L1: 0.67, L2: 0.65, L3: 0.62, L4: 0.74,
+  file_count: 98, common_file_count: 15, new_file_count: 56,
+  total_commits: 8,
+  first_sha_short: 'a1b2c3d',
+  last_sha_short: 'b3c4d5e',
+}
